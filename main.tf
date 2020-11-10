@@ -37,6 +37,14 @@ resource "confluentcloud_kafka_cluster" "cluster" {
   network_ingress = var.network_ingress
 }
 
+resource "confluentcloud_schema_registry" "registry" {
+  environment_id   = confluentcloud_environment.environment.id
+  service_provider = "gcp"
+  region           = var.schema_registry_region
+
+  depends_on       = [confluentcloud_kafka_cluster.cluster]
+}
+
 resource "confluentcloud_api_key" "api_key" {
   cluster_id     = confluentcloud_kafka_cluster.cluster.id
   environment_id = confluentcloud_environment.environment.id
