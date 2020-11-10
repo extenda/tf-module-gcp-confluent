@@ -10,6 +10,16 @@ This provider creates Confluentcloud Kafka cluster, and stores API Key and Secre
 |------|---------|
 | confluentcloud | 0.0.5 |
 
+As released version doesn't support `confluentcloud_schema_registry` resource yet, own binaries was compiled from commit `6e2cbc35fa0143d3f4466135ec06de95ce99e180` and placed to storage bucket.
+Provider binaries are available by:
+
+https://storage.googleapis.com/tf-registry-extenda/terraform-provider-confluentcloud_0.0.5a-6e2cbc3_linux_amd64.zip
+
+https://storage.googleapis.com/tf-registry-extenda/terraform-provider-confluentcloud_0.0.5a-6e2cbc3_darwin_amd64.zip
+
+https://storage.googleapis.com/tf-registry-extenda/terraform-provider-confluentcloud_0.0.5a-6e2cbc3_windows_amd64.zip
+
+
 ## Providers
 
 | Name | Version |
@@ -28,11 +38,12 @@ This provider creates Confluentcloud Kafka cluster, and stores API Key and Secre
 | deployment\_sku | Deployment parameter sku | `string` | `"BASIC"` | no |
 | environment | Environment ID to create cluster in | `string` | n/a | yes |
 | name | The name of the cluster | `string` | n/a | yes |
-| network\_egress | Network egress limit (MBps) | `number` | `0` | no |
-| network\_ingress | Network ingress limit (MBps) | `number` | `0` | no |
+| network\_egress | Network egress limit (MBps) | `number` | `100` | no |
+| network\_ingress | Network ingress limit (MBps) | `number` | `100` | no |
 | project\_id | Project ID to add Kafka secrets | `string` | `""` | no |
 | region | Region to create cluster in | `string` | `"europe-west1"` | no |
-| storage | Cluster storage limit (GB) | `number` | `0` | no |
+| schema\_registry\_region | Region for schema registry | `string` | `"EU"` | no |
+| storage | Cluster storage limit (GB) | `number` | `5000` | no |
 
 ## Outputs
 

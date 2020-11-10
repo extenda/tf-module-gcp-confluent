@@ -69,3 +69,9 @@ variable project_id {
   type        = string
   default     = ""
 }
+
+variable schema_registry_region {
+  description = "Region for schema registry"
+  type        = string
+  default     = "EU"
+}
