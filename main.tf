@@ -42,7 +42,7 @@ resource "confluentcloud_schema_registry" "registry" {
   service_provider = "gcp"
   region           = var.schema_registry_region
 
-  depends_on       = [confluentcloud_kafka_cluster.cluster]
+  depends_on = [confluentcloud_kafka_cluster.cluster]
 }
 
 resource "confluentcloud_api_key" "api_key" {
@@ -82,4 +82,65 @@ resource "google_secret_manager_secret_version" "kafka_secret_value" {
 
   secret      = google_secret_manager_secret.kafka_secret_id[each.key].id
   secret_data = each.value
+}
+
+
+
+resource "confluentcloud_service_account" "service_account" {
+  for_each    = toset(var.service_accounts)
+  name        = each.key
+  description = "Created by Terraform"
+}
+
+resource "confluentcloud_api_key" "service_account_api_key" {
+  for_each       = toset(var.service_accounts)
+  cluster_id     = confluentcloud_kafka_cluster.cluster.id
+  environment_id = confluentcloud_environment.environment.id
+  user_id        = confluentcloud_service_account.service_account[each.key].id
+}
+
+resource "google_secret_manager_secret" "sa_gcp_secret_key_id" {
+  provider  = google-beta
+  for_each  = toset(var.service_accounts)
+  secret_id = "kafka_sa_${each.key}_key"
+
+  labels = {
+    terraform = ""
+  }
+
+  replication {
+    automatic = true
+  }
+  project = var.project_id
+}
+
+resource "google_secret_manager_secret" "sa_gcp_secret_secret_id" {
+  provider  = google-beta
+  for_each  = toset(var.service_accounts)
+  secret_id = "kafka_sa_${each.key}_secret"
+
+  labels = {
+    terraform = ""
+  }
+
+  replication {
+    automatic = true
+  }
+  project = var.project_id
+}
+
+resource "google_secret_manager_secret_version" "sa_secret_key_value" {
+  provider = google-beta
+  for_each = toset(var.service_accounts)
+
+  secret      = google_secret_manager_secret.sa_gcp_secret_key_id[each.key].id
+  secret_data = confluentcloud_api_key.service_account_api_key[each.key].key
+}
+
+resource "google_secret_manager_secret_version" "sa_secret_secret_value" {
+  provider = google-beta
+  for_each = toset(var.service_accounts)
+
+  secret      = google_secret_manager_secret.sa_gcp_secret_secret_id[each.key].id
+  secret_data = confluentcloud_api_key.service_account_api_key[each.key].secret
 }

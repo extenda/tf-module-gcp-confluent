@@ -75,3 +75,9 @@ variable schema_registry_region {
   type        = string
   default     = "EU"
 }
+
+variable service_accounts {
+  description = "List of service accounts to create"
+  type        = list(string)
+  default     = []
+}

@@ -3,14 +3,31 @@ output "kafka_url" {
   value       = local.bootstrap_servers
 }
 
-output "key" {
-  description = "API Key for the Kafka cluster"
-  value       = confluentcloud_api_key.api_key.key
-  sensitive   = true
+output api_key {
+  description = "API Key/Secret for the Kafka cluster"
+  value = {
+    "key"    = confluentcloud_api_key.api_key.key
+    "secret" = confluentcloud_api_key.api_key.secret
+  }
+  sensitive = true
 }
 
-output "secret" {
-  description = "API Secret for the Kafka cluster"
-  value       = confluentcloud_api_key.api_key.secret
-  sensitive   = true
+output "service_account_ids" {
+  description = "Map of service account IDs"
+  value = {
+    for key in toset(var.service_accounts) :
+    key => confluentcloud_service_account.service_account[key].id
+  }
+}
+
+output "service_account_api_keys" {
+  description = "Map of API Keys/Secrets for the service accounts"
+  value = {
+    for key in toset(var.service_accounts) :
+    key => {
+      "key"    = confluentcloud_api_key.service_account_api_key[key].key
+      "secret" = confluentcloud_api_key.service_account_api_key[key].secret
+    }
+  }
+  sensitive = true
 }
