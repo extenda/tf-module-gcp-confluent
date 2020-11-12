@@ -43,12 +43,14 @@ https://storage.googleapis.com/tf-registry-extenda/terraform-provider-confluentc
 | project\_id | Project ID to add Kafka secrets | `string` | `""` | no |
 | region | Region to create cluster in | `string` | `"europe-west1"` | no |
 | schema\_registry\_region | Region for schema registry | `string` | `"EU"` | no |
+| service\_accounts | List of service accounts to create | `list(string)` | `[]` | no |
 | storage | Cluster storage limit (GB) | `number` | `5000` | no |
 
 ## Outputs
 
 | Name | Description |
 |------|-------------|
+| api\_key | API Key/Secret for the Kafka cluster |
 | kafka\_url | URL of the kafka cluster |
-| key | API Key for the Kafka cluster |
-| secret | API Secret for the Kafka cluster |
+| service\_account\_api\_keys | Map of API Keys/Secrets for the service accounts |
+| service\_account\_ids | Map of service account IDs |
