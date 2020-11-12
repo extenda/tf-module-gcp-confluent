@@ -78,6 +78,6 @@ variable schema_registry_region {
 
 variable service_accounts {
   description = "List of service accounts to create"
-  type = list(string)
-  default = []
+  type        = list(string)
+  default     = []
 }

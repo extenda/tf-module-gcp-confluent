@@ -14,20 +14,20 @@ output api_key {
 
 output "service_account_ids" {
   description = "Map of service account IDs"
-  value       = {
-    for key in toset(var.service_accounts):
-      key => confluentcloud_service_account.service_account[key].id
+  value = {
+    for key in toset(var.service_accounts) :
+    key => confluentcloud_service_account.service_account[key].id
   }
 }
 
 output "service_account_api_keys" {
   description = "Map of API Keys/Secrets for the service accounts"
   value = {
-    for key in toset(var.service_accounts):
-      key => {
-        "key"    = confluentcloud_api_key.service_account_api_key[key].key
-        "secret" = confluentcloud_api_key.service_account_api_key[key].secret
-      }
+    for key in toset(var.service_accounts) :
+    key => {
+      "key"    = confluentcloud_api_key.service_account_api_key[key].key
+      "secret" = confluentcloud_api_key.service_account_api_key[key].secret
+    }
   }
   sensitive = true
 }
