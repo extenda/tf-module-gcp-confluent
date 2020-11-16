@@ -1,9 +1,9 @@
-output "kafka_url" {
+output "kafka_cluster_url" {
   description = "URL of the kafka cluster"
   value       = local.bootstrap_servers
 }
 
-output api_key {
+output "kafka_cluster_api_key" {
   description = "API Key/Secret for the Kafka cluster"
   value = {
     "key"    = confluentcloud_api_key.api_key.key
@@ -11,6 +11,21 @@ output api_key {
   }
   sensitive = true
 }
+
+output "schema_registry_url" {
+  description = "Schema Registry URL"
+  value = confluentcloud_schema_registry.registry.endpoint
+}
+
+output "schema_registry_api_key" {
+  description = "API Key/Secret for the Kafka cluster"
+  value = {
+    "key"    = confluentcloud_api_key.registry_api_key.key
+    "secret" = confluentcloud_api_key.registry_api_key.secret
+  }
+  sensitive = true
+}
+
 
 output "service_account_ids" {
   description = "Map of service account IDs"
