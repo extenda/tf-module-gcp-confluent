@@ -47,12 +47,12 @@ output "service_account_api_keys" {
   sensitive = true
 }
 
-output "environment" {
+output "environment_id" {
   description = "ID of created confluent environment"
   value = confluentcloud_environment.environment.id
 }
 
-output "cluster" {
+output "cluster_id" {
   description = "ID of created kafka cluster"
   value = confluentcloud_kafka_cluster.cluster.id
 }
