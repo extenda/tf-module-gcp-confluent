@@ -50,6 +50,8 @@ https://storage.googleapis.com/tf-registry-extenda/terraform-provider-confluentc
 
 | Name | Description |
 |------|-------------|
+| cluster | ID of created kafka cluster |
+| environment | ID of created confluent environment |
 | api\_key | API Key/Secret for the Kafka cluster |
 | kafka\_url | URL of the kafka cluster |
 | service\_account\_api\_keys | Map of API Keys/Secrets for the service accounts |
