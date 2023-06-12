@@ -1,11 +1,13 @@
 terraform {
+  required_version = ">= 1.4.6"
   required_providers {
-    confluentcloud = {
-      source  = "Mongey/confluentcloud"
-      version = "0.0.15"
+    confluent = {
+      source  = "confluentinc/confluent"
+      version = "1.43.0"
     }
-    google-beta = {
-      source = "hashicorp/google-beta"
+    google = {
+      source  = "hashicorp/google"
+      version = "~> 4.62.0"
     }
   }
 }
