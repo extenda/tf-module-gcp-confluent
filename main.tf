@@ -1,86 +1,114 @@
-data "google_secret_manager_secret_version" "confluent_username" {
-  provider = google-beta
-
-  count   = (var.confluent_project_gcp_secret != "") ? 1 : 0
-  project = var.confluent_project_gcp_secret
-  secret  = var.confluent_username
-}
-
-data "google_secret_manager_secret_version" "confluent_password" {
-  provider = google-beta
-
-  count   = (var.confluent_project_gcp_secret != "") ? 1 : 0
-  project = var.confluent_project_gcp_secret
-  secret  = var.confluent_password
-}
-
-provider "confluentcloud" {
-  username = (var.confluent_project_gcp_secret != "") ? data.google_secret_manager_secret_version.confluent_username[0].secret_data : var.confluent_username
-  password = (var.confluent_project_gcp_secret != "") ? data.google_secret_manager_secret_version.confluent_password[0].secret_data : var.confluent_password
-}
-
-
-resource "confluentcloud_environment" "environment" {
-  name = var.environment
-}
-
-resource "confluentcloud_kafka_cluster" "cluster" {
-  name             = var.name
-  service_provider = "gcp"
-  region           = var.region
-  availability     = var.availability
-  environment_id   = confluentcloud_environment.environment.id
-  deployment = {
-    sku = var.deployment_sku
-  }
-  storage         = var.storage
-  network_egress  = var.network_egress
-  network_ingress = var.network_ingress
-}
-
-resource "confluentcloud_api_key" "api_key" {
-  cluster_id     = confluentcloud_kafka_cluster.cluster.id
-  environment_id = confluentcloud_environment.environment.id
-}
-
-resource "confluentcloud_schema_registry" "registry" {
-  environment_id   = confluentcloud_environment.environment.id
-  service_provider = "gcp"
-  region           = var.schema_registry_region
-
-  depends_on = [confluentcloud_kafka_cluster.cluster]
-}
-
-resource "confluentcloud_api_key" "registry_api_key" {
-  environment_id = confluentcloud_environment.environment.id
-  logical_clusters = [
-    confluentcloud_schema_registry.registry.id,
-  ]
-  description = "Created by Terraform"
-}
-
-#-------------------------------------------------------------------------------
-
 locals {
-  bootstrap_servers = [replace(confluentcloud_kafka_cluster.cluster.bootstrap_servers, "SASL_SSL://", "")]
   gcp_kafka_secrets = {
-    kafka_cluster_api_key          = confluentcloud_api_key.api_key.key
-    kafka_cluster_api_secret       = confluentcloud_api_key.api_key.secret
-    kafka_cluster_bootstrap_server = join(",", local.bootstrap_servers)
-    kafka_schema_registry_key      = confluentcloud_api_key.registry_api_key.key
-    kafka_schema_registry_secret   = confluentcloud_api_key.registry_api_key.secret
-    kafka_schema_registry_url      = confluentcloud_schema_registry.registry.endpoint
+    kafka_cluster_api_key          = confluent_api_key.api_key.id
+    kafka_cluster_api_secret       = confluent_api_key.api_key.secret
+    kafka_cluster_bootstrap_server = replace(confluent_kafka_cluster.cluster.bootstrap_endpoint, "SASL_SSL://", "")
+    kafka_schema_registry_key      = confluent_api_key.registry_api_key.id
+    kafka_schema_registry_secret   = confluent_api_key.registry_api_key.secret
+    kafka_schema_registry_url      = confluent_schema_registry_cluster.registry.rest_endpoint
 
-    spring_cloud_stream_kafka_binder_brokers = confluentcloud_kafka_cluster.cluster.bootstrap_servers
-    spring_kafka_properties_sasl_jaas_config = "org.apache.kafka.common.security.plain.PlainLoginModule required username=\"${confluentcloud_api_key.api_key.key}\" password=\"${confluentcloud_api_key.api_key.secret}\";"
-
-    spring_kafka_properties_schema_registry_basic_auth_user_info = "${confluentcloud_api_key.registry_api_key.key}:${confluentcloud_api_key.registry_api_key.secret}"
+    spring_cloud_stream_kafka_binder_brokers = confluent_kafka_cluster.cluster.bootstrap_endpoint
+    spring_kafka_properties_sasl_jaas_config = "org.apache.kafka.common.security.plain.PlainLoginModule required username=\"${confluent_api_key.api_key.id}\" password=\"${confluent_api_key.api_key.secret}\";"
+    spring_kafka_properties_schema_registry_basic_auth_user_info = "${confluent_api_key.registry_api_key.id}:${confluent_api_key.registry_api_key.secret}"
   }
 }
 
+data "google_secret_manager_secret_version" "confluent_secrets" {
+  for_each = (var.confluent_auth_project != "") ? toset(var.confluent_secrets) : []
+  project  = var.confluent_auth_project
+  secret   = each.key
+}
+
+provider "confluent" {
+  cloud_api_key     = (var.confluent_auth_project != "") ? data.google_secret_manager_secret_version.confluent_secrets["tf-confluent-api-key"].secret_data : var.confluent_secrets[0]
+  cloud_api_secret  = (var.confluent_auth_project != "") ? data.google_secret_manager_secret_version.confluent_secrets["tf-confluent-api-secret"].secret_data : var.confluent_secrets[1]
+}
+
+resource "confluent_environment" "environment" {
+  display_name = var.environment
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+resource "confluent_kafka_cluster" "cluster" {
+  display_name   = var.name
+  cloud          = "GCP"
+  region         = var.region
+  availability   = var.availability
+  environment {
+    id = confluent_environment.environment.id
+  }
+
+  dynamic "basic" {
+    for_each = var.project_env == "staging" ? [1] : []
+    content {}
+  }
+
+  dynamic "standard" {
+    for_each = var.project_env == "prod" ? [1] : []
+    content {}
+  }
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+resource "confluent_api_key" "api_key" {
+  display_name = "Terraform Runner API key"
+  description  = "Created by Terraform"
+  owner {
+    id          = var.terraform_runner_user_id
+    api_version = "iam/v2"
+    kind        = "User"
+  }
+
+  managed_resource {
+    id          = confluent_kafka_cluster.cluster.id
+    api_version = confluent_kafka_cluster.cluster.api_version
+    kind        = confluent_kafka_cluster.cluster.kind
+
+    environment {
+      id = confluent_environment.environment.id
+    }
+  }
+}
+
+resource "confluent_schema_registry_cluster" "registry" {
+  package = var.package
+  environment {
+    id = confluent_environment.environment.id
+  }
+  region {
+    id = var.schema_registry_region
+  }           
+
+  depends_on = [confluent_kafka_cluster.cluster]
+}
+
+resource "confluent_api_key" "registry_api_key" {
+  display_name = "Registry API key"
+  description  = "Created by Terraform"
+  owner {
+    id          = var.terraform_runner_user_id
+    api_version = "iam/v2"
+    kind        = "User"
+  }
+
+  managed_resource {
+    id          = confluent_schema_registry_cluster.registry.id
+    api_version = confluent_schema_registry_cluster.registry.api_version
+    kind        = confluent_schema_registry_cluster.registry.kind
+
+    environment {
+      id = confluent_environment.environment.id
+    }
+  }
+}
 
 resource "google_secret_manager_secret" "kafka_secret_id" {
-  provider = google-beta
   for_each = local.gcp_kafka_secrets
 
   secret_id = each.key
@@ -96,70 +124,8 @@ resource "google_secret_manager_secret" "kafka_secret_id" {
 }
 
 resource "google_secret_manager_secret_version" "kafka_secret_value" {
-  provider = google-beta
   for_each = local.gcp_kafka_secrets
 
   secret      = google_secret_manager_secret.kafka_secret_id[each.key].id
   secret_data = each.value
-}
-
-#-------------------------------------------------------------------------------
-
-resource "confluentcloud_service_account" "service_account" {
-  for_each    = toset(var.service_accounts)
-  name        = each.key
-  description = "Created by Terraform"
-}
-
-resource "confluentcloud_api_key" "service_account_api_key" {
-  for_each       = toset(var.service_accounts)
-  cluster_id     = confluentcloud_kafka_cluster.cluster.id
-  environment_id = confluentcloud_environment.environment.id
-  user_id        = confluentcloud_service_account.service_account[each.key].id
-}
-
-resource "google_secret_manager_secret" "sa_gcp_secret_key_id" {
-  provider  = google-beta
-  for_each  = toset(var.service_accounts)
-  secret_id = "kafka_serviceaccount_${each.key}_key"
-
-  labels = {
-    terraform = ""
-  }
-
-  replication {
-    automatic = true
-  }
-  project = var.project_id
-}
-
-resource "google_secret_manager_secret" "sa_gcp_secret_secret_id" {
-  provider  = google-beta
-  for_each  = toset(var.service_accounts)
-  secret_id = "kafka_serviceaccount_${each.key}_secret"
-
-  labels = {
-    terraform = ""
-  }
-
-  replication {
-    automatic = true
-  }
-  project = var.project_id
-}
-
-resource "google_secret_manager_secret_version" "sa_secret_key_value" {
-  provider = google-beta
-  for_each = toset(var.service_accounts)
-
-  secret      = google_secret_manager_secret.sa_gcp_secret_key_id[each.key].id
-  secret_data = confluentcloud_api_key.service_account_api_key[each.key].key
-}
-
-resource "google_secret_manager_secret_version" "sa_secret_secret_value" {
-  provider = google-beta
-  for_each = toset(var.service_accounts)
-
-  secret      = google_secret_manager_secret.sa_gcp_secret_secret_id[each.key].id
-  secret_data = confluentcloud_api_key.service_account_api_key[each.key].secret
 }

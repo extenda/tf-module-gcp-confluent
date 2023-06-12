@@ -1,21 +1,14 @@
-variable confluent_project_gcp_secret {
+variable confluent_auth_project {
   description = "GCP project ID having secret for confluentcloud credentials"
   type        = string
   default     = "tf-admin-90301274"
 }
 
-variable confluent_username {
-  description = "Confluentcloud username or GCP secretname to extract username if var.confluent_project_gcp_secret provided"
-  type        = string
-  default     = "confluent-username"
+variable confluent_secrets {
+  description = "List of secrets to extract from Secret Manager for Auth"
+  type        = list(string)
+  default     = ["tf-confluent-api-key", "tf-confluent-api-secret"]
 }
-
-variable confluent_password {
-  description = "Confluentcloud password or GCP secretname to extract password if var.confluent_project_gcp_secret provided"
-  type        = string
-  default     = "confluent-password"
-}
-
 
 variable environment {
   description = "Environment ID to create cluster in"
@@ -34,50 +27,35 @@ variable region {
 }
 
 variable availability {
-  description = "Availability: LOW(single-zone) or HIGH(multi-zone)"
+  description = "The availability zone configuration of the Kafka cluster. Accepted values are: SINGLE_ZONE and MULTI_ZONE"
   type        = string
-  default     = "LOW"
+  default     = "SINGLE_ZONE"
 }
 
-variable storage {
-  description = "Cluster storage limit (GB)"
-  type        = number
-  default     = 5000
-}
-
-variable network_ingress {
-  description = "Network ingress limit (MBps)"
-  type        = number
-  default     = 100
-}
-
-variable network_egress {
-  description = "Network egress limit (MBps)"
-  type        = number
-  default     = 100
-}
-
-variable deployment_sku {
-  description = "Deployment parameter sku"
+variable project_env {
   type        = string
-  default     = "BASIC"
+  description = "Staging or prod environment"
 }
-
 
 variable project_id {
   description = "Project ID to add Kafka secrets"
   type        = string
-  default     = ""
 }
 
 variable schema_registry_region {
   description = "Region for schema registry"
   type        = string
-  default     = "EU"
+  default     = "sgreg-5" #europe-west3
 }
 
-variable service_accounts {
-  description = "List of service accounts to create"
-  type        = list(string)
-  default     = []
+variable package {
+  type        = string
+  default     = "ESSENTIALS"
+  description = "The type of the billing package. Accepted values are: ESSENTIALS and ADVANCED"
+}
+
+variable terraform_runner_user_id {
+  type        = string
+  default     = "u-4vy3kp"
+  description = "ID of a user account to use for API keys creation"
 }
