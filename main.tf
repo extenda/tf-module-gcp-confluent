@@ -1,9 +1,9 @@
 locals {
-  # Determine cluster type: prefer explicit cluster_type, fall back to project_env mapping
-  effective_cluster_type = coalesce(
-    var.cluster_type,
-    var.project_env == "staging" ? "basic" : var.project_env == "prod" ? "standard" : null
-  )
+  # Default zones for Private Service Connect based on region
+  psc_zones = var.private_service_connect.enabled ? coalesce(
+    var.private_service_connect.zones,
+    ["${var.region}-a", "${var.region}-b", "${var.region}-c"]
+  ) : []
 
   gcp_kafka_secrets = {
     kafka_cluster_api_key          = confluent_api_key.api_key.id
@@ -38,33 +38,92 @@ resource "confluent_environment" "environment" {
   }
 }
 
-resource "confluent_kafka_cluster" "cluster" {
-  display_name = var.name
-  cloud        = "GCP"
-  region       = var.region
-  availability = var.availability
+# Private Service Connect Network (only created when PSC is enabled)
+resource "confluent_network" "private_service_connect" {
+  count = var.private_service_connect.enabled ? 1 : 0
+
+  display_name     = coalesce(var.private_service_connect.network_name, "${var.name}-psc-network")
+  cloud            = "GCP"
+  region           = var.region
+  connection_types = ["PRIVATELINK"]
+  zones            = local.psc_zones
+
   environment {
     id = confluent_environment.environment.id
   }
 
-  dynamic "basic" {
-    for_each = local.effective_cluster_type == "basic" ? [1] : []
-    content {}
-  }
-
-  dynamic "standard" {
-    for_each = local.effective_cluster_type == "standard" ? [1] : []
-    content {}
-  }
-
-  dynamic "enterprise" {
-    for_each = local.effective_cluster_type == "enterprise" ? [1] : []
-    content {}
+  dns_config {
+    resolution = "PRIVATE"
   }
 
   lifecycle {
     prevent_destroy = true
   }
+}
+
+# Private Link Access - allows GCP project to connect via Private Service Connect
+resource "confluent_private_link_access" "gcp" {
+  count = var.private_service_connect.enabled ? 1 : 0
+
+  display_name = "${var.name}-psc-access"
+
+  gcp {
+    project = var.private_service_connect.gcp_project_id
+  }
+
+  environment {
+    id = confluent_environment.environment.id
+  }
+
+  network {
+    id = confluent_network.private_service_connect[0].id
+  }
+}
+
+resource "confluent_kafka_cluster" "cluster" {
+  display_name = var.name
+  cloud        = "GCP"
+  region       = var.region
+  # Private Service Connect requires MULTI_ZONE availability
+  availability = var.private_service_connect.enabled ? "MULTI_ZONE" : var.availability
+
+  environment {
+    id = confluent_environment.environment.id
+  }
+
+  # Network reference for Private Service Connect
+  dynamic "network" {
+    for_each = var.private_service_connect.enabled ? [1] : []
+    content {
+      id = confluent_network.private_service_connect[0].id
+    }
+  }
+
+  # Cluster type blocks - exactly one will be created based on var.cluster_type
+  dynamic "basic" {
+    for_each = var.cluster_type == "basic" ? [1] : []
+    content {}
+  }
+  dynamic "standard" {
+    for_each = var.cluster_type == "standard" ? [1] : []
+    content {}
+  }
+  dynamic "enterprise" {
+    for_each = var.cluster_type == "enterprise" ? [1] : []
+    content {}
+  }
+  dynamic "dedicated" {
+    for_each = var.cluster_type == "dedicated" ? [1] : []
+    content {
+      cku = var.dedicated_cku
+    }
+  }
+
+  lifecycle {
+    prevent_destroy = true
+  }
+
+  depends_on = [confluent_private_link_access.gcp]
 }
 
 resource "confluent_api_key" "api_key" {

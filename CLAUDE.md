@@ -5,7 +5,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Overview
 
 This is a Terraform module that provisions Confluent Cloud Kafka infrastructure on GCP. It creates:
-- Confluent environment and Kafka cluster (basic, standard, or enterprise)
+- Confluent environment and Kafka cluster (basic, standard, enterprise, or dedicated)
+- Optional Private Service Connect network for dedicated clusters
 - API keys for both Kafka and Schema Registry
 - GCP Secret Manager secrets containing connection credentials
 
@@ -38,15 +39,17 @@ The module uses a two-provider setup:
 
 **Credential flow**: GCP Secret Manager (source) → Confluent provider auth → Create resources → Store new secrets back to GCP Secret Manager (target project)
 
-**Cluster type logic**: `cluster_type` variable controls cluster tier - "basic", "standard", or "enterprise". For backwards compatibility, `project_env` is still supported ("staging" → basic, "prod" → standard).
+**Cluster type logic**: `cluster_type` variable (required) controls cluster tier - "basic", "standard", "enterprise", or "dedicated". Dedicated clusters require `dedicated_cku` configuration.
 
-**Lifecycle protection**: Both `confluent_environment` and `confluent_kafka_cluster` have `prevent_destroy = true`.
+**Private Service Connect**: When `private_service_connect.enabled = true`, creates a `confluent_network` with PRIVATELINK connection type and `confluent_private_link_access` for GCP project access. Only supported with dedicated clusters. Automatically sets availability to MULTI_ZONE.
+
+**Lifecycle protection**: `confluent_environment`, `confluent_kafka_cluster`, and `confluent_network` have `prevent_destroy = true`.
 
 ## Required Variables
 
 - `environment` - Confluent environment display name
 - `name` - Kafka cluster name
-- `cluster_type` - One of: "basic", "standard", "enterprise" (or use deprecated `project_env`)
+- `cluster_type` - One of: "basic", "standard", "enterprise", "dedicated"
 - `project_id` - GCP project where Kafka secrets will be stored
 
 ## Provider Versions

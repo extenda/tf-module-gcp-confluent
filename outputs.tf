@@ -21,3 +21,13 @@ output "cluster_id" {
   description = "ID of created kafka cluster"
   value       = confluent_kafka_cluster.cluster.id
 }
+
+# Private Service Connect outputs
+output "private_service_connect" {
+  description = "Private Service Connect configuration. Use service_attachments to create GCP Private Service Connect endpoints."
+  value = var.private_service_connect.enabled ? {
+    network_id          = confluent_network.private_service_connect[0].id
+    dns_domain          = confluent_network.private_service_connect[0].dns_domain
+    service_attachments = confluent_network.private_service_connect[0].gcp[0].private_service_connect_service_attachments
+  } : null
+}

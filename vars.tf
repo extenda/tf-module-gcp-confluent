@@ -32,20 +32,37 @@ variable "availability" {
   default     = "SINGLE_ZONE"
 }
 
-variable "project_env" {
-  type        = string
-  description = "Staging or prod environment (deprecated: use cluster_type instead)"
-  default     = null
-}
-
 variable "cluster_type" {
   type        = string
-  description = "The type of Kafka cluster. Accepted values are: basic, standard, enterprise"
-  default     = null
+  description = "The type of Kafka cluster. Accepted values are: basic, standard, enterprise, dedicated"
 
   validation {
-    condition     = var.cluster_type == null || contains(["basic", "standard", "enterprise"], var.cluster_type)
-    error_message = "cluster_type must be one of: basic, standard, enterprise"
+    condition     = contains(["basic", "standard", "enterprise", "dedicated"], var.cluster_type)
+    error_message = "cluster_type must be one of: basic, standard, enterprise, dedicated"
+  }
+}
+
+variable "dedicated_cku" {
+  type        = number
+  description = "Number of CKUs for dedicated cluster. Required when cluster_type is 'dedicated'. Minimum 2 for MULTI_ZONE."
+  default     = 2
+}
+
+variable "private_service_connect" {
+  type = object({
+    enabled        = bool
+    gcp_project_id = optional(string)
+    network_name   = optional(string)
+    zones          = optional(list(string))
+  })
+  description = "Private Service Connect configuration. Only supported with dedicated cluster type."
+  default = {
+    enabled = false
+  }
+
+  validation {
+    condition     = !var.private_service_connect.enabled || var.private_service_connect.gcp_project_id != null
+    error_message = "gcp_project_id is required when Private Service Connect is enabled"
   }
 }
 
