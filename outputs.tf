@@ -14,10 +14,10 @@ output "kafka_cluster_api_key" {
 
 output "environment_id" {
   description = "ID of created confluent environment"
-  value = confluent_environment.environment.id
+  value       = confluent_environment.environment.id
 }
 
 output "cluster_id" {
   description = "ID of created kafka cluster"
-  value = confluent_kafka_cluster.cluster.id
+  value       = confluent_kafka_cluster.cluster.id
 }

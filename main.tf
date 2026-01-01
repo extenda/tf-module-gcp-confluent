@@ -1,14 +1,20 @@
 locals {
+  # Determine cluster type: prefer explicit cluster_type, fall back to project_env mapping
+  effective_cluster_type = coalesce(
+    var.cluster_type,
+    var.project_env == "staging" ? "basic" : var.project_env == "prod" ? "standard" : null
+  )
+
   gcp_kafka_secrets = {
     kafka_cluster_api_key          = confluent_api_key.api_key.id
     kafka_cluster_api_secret       = confluent_api_key.api_key.secret
     kafka_cluster_bootstrap_server = replace(confluent_kafka_cluster.cluster.bootstrap_endpoint, "SASL_SSL://", "")
     kafka_schema_registry_key      = confluent_api_key.registry_api_key.id
     kafka_schema_registry_secret   = confluent_api_key.registry_api_key.secret
-    kafka_schema_registry_url      = confluent_schema_registry_cluster.registry.rest_endpoint
+    kafka_schema_registry_url      = data.confluent_schema_registry_cluster.registry.rest_endpoint
 
-    spring_cloud_stream_kafka_binder_brokers = confluent_kafka_cluster.cluster.bootstrap_endpoint
-    spring_kafka_properties_sasl_jaas_config = "org.apache.kafka.common.security.plain.PlainLoginModule required username=\"${confluent_api_key.api_key.id}\" password=\"${confluent_api_key.api_key.secret}\";"
+    spring_cloud_stream_kafka_binder_brokers                     = confluent_kafka_cluster.cluster.bootstrap_endpoint
+    spring_kafka_properties_sasl_jaas_config                     = "org.apache.kafka.common.security.plain.PlainLoginModule required username=\"${confluent_api_key.api_key.id}\" password=\"${confluent_api_key.api_key.secret}\";"
     spring_kafka_properties_schema_registry_basic_auth_user_info = "${confluent_api_key.registry_api_key.id}:${confluent_api_key.registry_api_key.secret}"
   }
 }
@@ -20,8 +26,8 @@ data "google_secret_manager_secret_version" "confluent_secrets" {
 }
 
 provider "confluent" {
-  cloud_api_key     = (var.confluent_auth_project != "") ? data.google_secret_manager_secret_version.confluent_secrets["tf-confluent-api-key"].secret_data : var.confluent_secrets[0]
-  cloud_api_secret  = (var.confluent_auth_project != "") ? data.google_secret_manager_secret_version.confluent_secrets["tf-confluent-api-secret"].secret_data : var.confluent_secrets[1]
+  cloud_api_key    = (var.confluent_auth_project != "") ? data.google_secret_manager_secret_version.confluent_secrets["tf-confluent-api-key"].secret_data : var.confluent_secrets[0]
+  cloud_api_secret = (var.confluent_auth_project != "") ? data.google_secret_manager_secret_version.confluent_secrets["tf-confluent-api-secret"].secret_data : var.confluent_secrets[1]
 }
 
 resource "confluent_environment" "environment" {
@@ -33,21 +39,26 @@ resource "confluent_environment" "environment" {
 }
 
 resource "confluent_kafka_cluster" "cluster" {
-  display_name   = var.name
-  cloud          = "GCP"
-  region         = var.region
-  availability   = var.availability
+  display_name = var.name
+  cloud        = "GCP"
+  region       = var.region
+  availability = var.availability
   environment {
     id = confluent_environment.environment.id
   }
 
   dynamic "basic" {
-    for_each = var.project_env == "staging" ? [1] : []
+    for_each = local.effective_cluster_type == "basic" ? [1] : []
     content {}
   }
 
   dynamic "standard" {
-    for_each = var.project_env == "prod" ? [1] : []
+    for_each = local.effective_cluster_type == "standard" ? [1] : []
+    content {}
+  }
+
+  dynamic "enterprise" {
+    for_each = local.effective_cluster_type == "enterprise" ? [1] : []
     content {}
   }
 
@@ -76,14 +87,12 @@ resource "confluent_api_key" "api_key" {
   }
 }
 
-resource "confluent_schema_registry_cluster" "registry" {
-  package = var.package
+# Schema Registry is auto-provisioned with environments in provider v2.0+
+# Use data source to reference the existing Schema Registry cluster
+data "confluent_schema_registry_cluster" "registry" {
   environment {
     id = confluent_environment.environment.id
   }
-  region {
-    id = var.schema_registry_region
-  }           
 
   depends_on = [confluent_kafka_cluster.cluster]
 }
@@ -98,9 +107,9 @@ resource "confluent_api_key" "registry_api_key" {
   }
 
   managed_resource {
-    id          = confluent_schema_registry_cluster.registry.id
-    api_version = confluent_schema_registry_cluster.registry.api_version
-    kind        = confluent_schema_registry_cluster.registry.kind
+    id          = data.confluent_schema_registry_cluster.registry.id
+    api_version = data.confluent_schema_registry_cluster.registry.api_version
+    kind        = data.confluent_schema_registry_cluster.registry.kind
 
     environment {
       id = confluent_environment.environment.id
