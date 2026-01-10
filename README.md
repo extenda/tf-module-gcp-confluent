@@ -72,6 +72,44 @@ After applying the module, use the `private_service_connect` output to create GC
 # }
 ```
 
+## Private Link Attachment (PLATT)
+
+This module supports Private Link Attachment for Enterprise and serverless clusters. Unlike Private Service Connect (which requires dedicated clusters and manual GCP endpoint creation), PLATT automatically creates all necessary GCP-side infrastructure including the Private Service Connect endpoint and private DNS configuration.
+
+**Note:** Private Service Connect and Private Link Attachment are mutually exclusive.
+
+### Usage
+
+```hcl
+module "confluent" {
+  source = "github.com/extenda/tf-module-gcp-confluent"
+
+  environment  = "production"
+  name         = "my-kafka-cluster"
+  cluster_type = "enterprise"
+  project_id   = "my-gcp-project"
+
+  private_link_attachment = {
+    enabled    = true
+    network    = "projects/my-gcp-project/global/networks/my-vpc"
+    subnetwork = "projects/my-gcp-project/regions/europe-west1/subnetworks/my-subnet"
+  }
+}
+```
+
+### What Gets Created
+
+When enabled, the module creates:
+
+1. **Confluent Private Link Attachment** - Reserves a PLATT endpoint in Confluent Cloud
+2. **GCP Static IP** - Internal IP address for the PSC endpoint
+3. **GCP Forwarding Rule** - The Private Service Connect endpoint
+4. **Private DNS Zone** - Zone for `<region>.gcp.private.confluent.cloud`
+5. **DNS Wildcard Record** - Routes all Confluent traffic to the PSC endpoint
+6. **PLATT Connection** - Registers the GCP endpoint with Confluent
+
+After applying, your applications in the specified VPC can connect to Kafka using the private endpoint automatically via DNS resolution.
+
 ## Inputs
 
 | Name | Description | Type | Default | Required |
@@ -83,6 +121,7 @@ After applying the module, use the `private_service_connect` output to create GC
 | dedicated\_cku | Number of CKUs for dedicated cluster. Required when cluster\_type is 'dedicated'. Minimum 2 for MULTI\_ZONE. | `number` | `2` | no |
 | environment | Environment display name to create | `string` | n/a | yes |
 | name | The name of the cluster | `string` | n/a | yes |
+| private\_link\_attachment | Private Link Attachment (PLATT) configuration. For Enterprise/serverless clusters. | `object` | `{ enabled = false }` | no |
 | private\_service\_connect | Private Service Connect configuration. Only supported with dedicated cluster type. | `object` | `{ enabled = false }` | no |
 | project\_id | Project ID to add Kafka secrets | `string` | n/a | yes |
 | region | Region to create cluster in | `string` | `"europe-west1"` | no |
@@ -97,6 +136,17 @@ After applying the module, use the `private_service_connect` output to create GC
 | network\_name | Custom name for the Confluent network | `string` | no |
 | zones | List of GCP zones (defaults to region-a, region-b, region-c) | `list(string)` | no |
 
+### private\_link\_attachment Object
+
+| Name | Description | Type | Required |
+|------|-------------|------|:--------:|
+| enabled | Enable Private Link Attachment | `bool` | yes |
+| network | Full self-link of the GCP VPC network | `string` | yes (when enabled) |
+| subnetwork | Full self-link of the GCP subnetwork | `string` | yes (when enabled) |
+| name | Custom name for the PLATT resources | `string` | no |
+| gcp\_project | GCP project for the PSC endpoint (defaults to project\_id) | `string` | no |
+| ip\_address | Specific internal IP to use for the endpoint | `string` | no |
+
 ## Outputs
 
 | Name | Description |
@@ -105,4 +155,5 @@ After applying the module, use the `private_service_connect` output to create GC
 | environment\_id | ID of created confluent environment |
 | kafka\_cluster\_api\_key | API Key/Secret for the Kafka cluster |
 | kafka\_cluster\_url | URL of the kafka cluster |
+| private\_link\_attachment | Private Link Attachment (PLATT) configuration including endpoint details and DNS zone |
 | private\_service\_connect | Private Service Connect configuration including service attachments for creating GCP endpoints |
