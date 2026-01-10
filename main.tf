@@ -5,6 +5,12 @@ locals {
     ["${var.region}-a", "${var.region}-b", "${var.region}-c"]
   ) : []
 
+  # Private Link Attachment (PLATT) configuration
+  platt_enabled     = var.private_link_attachment.enabled
+  platt_gcp_project = local.platt_enabled ? coalesce(var.private_link_attachment.gcp_project, var.project_id) : null
+  platt_name        = local.platt_enabled ? coalesce(var.private_link_attachment.name, "${var.name}-platt") : null
+  platt_dns_domain  = local.platt_enabled ? "${var.region}.gcp.private.confluent.cloud" : null
+
   gcp_kafka_secrets = {
     kafka_cluster_api_key          = confluent_api_key.api_key.id
     kafka_cluster_api_secret       = confluent_api_key.api_key.secret
@@ -78,6 +84,102 @@ resource "confluent_private_link_access" "gcp" {
   network {
     id = confluent_network.private_service_connect[0].id
   }
+}
+
+# =============================================================================
+# Private Link Attachment (PLATT) - for Enterprise/serverless clusters
+# =============================================================================
+
+# Private Link Attachment - reservation in Confluent Cloud
+resource "confluent_private_link_attachment" "platt" {
+  count = local.platt_enabled ? 1 : 0
+
+  cloud        = "GCP"
+  region       = var.region
+  display_name = local.platt_name
+
+  environment {
+    id = confluent_environment.environment.id
+  }
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+# Static internal IP for PSC endpoint
+resource "google_compute_address" "platt" {
+  count = local.platt_enabled ? 1 : 0
+
+  name         = "${local.platt_name}-endpoint-ip"
+  project      = local.platt_gcp_project
+  region       = var.region
+  address_type = "INTERNAL"
+  subnetwork   = var.private_link_attachment.subnetwork
+  address      = var.private_link_attachment.ip_address
+}
+
+# PSC endpoint - connects to Confluent's service attachment
+resource "google_compute_forwarding_rule" "platt" {
+  count = local.platt_enabled ? 1 : 0
+
+  name    = "${local.platt_name}-endpoint"
+  project = local.platt_gcp_project
+  region  = var.region
+
+  target                = confluent_private_link_attachment.platt[0].gcp[0].private_service_connect_service_attachment
+  load_balancing_scheme = ""
+  network               = var.private_link_attachment.network
+  ip_address            = google_compute_address.platt[0].id
+}
+
+# Registers the GCP PSC endpoint with Confluent
+resource "confluent_private_link_attachment_connection" "platt" {
+  count = local.platt_enabled ? 1 : 0
+
+  display_name = "${local.platt_name}-connection"
+
+  environment {
+    id = confluent_environment.environment.id
+  }
+
+  gcp {
+    private_service_connect_connection_id = google_compute_forwarding_rule.platt[0].psc_connection_id
+  }
+
+  private_link_attachment {
+    id = confluent_private_link_attachment.platt[0].id
+  }
+}
+
+# Private DNS zone for Confluent private endpoints
+resource "google_dns_managed_zone" "platt" {
+  count = local.platt_enabled ? 1 : 0
+
+  name        = replace(local.platt_dns_domain, ".", "-")
+  project     = local.platt_gcp_project
+  dns_name    = "${local.platt_dns_domain}."
+  description = "Private DNS zone for Confluent Cloud Private Link Attachment"
+  visibility  = "private"
+
+  private_visibility_config {
+    networks {
+      network_url = var.private_link_attachment.network
+    }
+  }
+}
+
+# Wildcard A record pointing all subdomains to the PSC endpoint IP
+resource "google_dns_record_set" "platt_wildcard" {
+  count = local.platt_enabled ? 1 : 0
+
+  name         = "*.${google_dns_managed_zone.platt[0].dns_name}"
+  project      = local.platt_gcp_project
+  managed_zone = google_dns_managed_zone.platt[0].name
+  type         = "A"
+  ttl          = 60
+
+  rrdatas = [google_compute_address.platt[0].address]
 }
 
 resource "confluent_kafka_cluster" "cluster" {

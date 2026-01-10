@@ -66,6 +66,35 @@ variable "private_service_connect" {
   }
 }
 
+variable "private_link_attachment" {
+  type = object({
+    enabled     = bool
+    name        = optional(string)
+    gcp_project = optional(string)
+    network     = optional(string)
+    subnetwork  = optional(string)
+    ip_address  = optional(string)
+  })
+  description = <<-EOT
+    Private Link Attachment (PLATT) configuration for Enterprise/serverless clusters.
+    Creates a GCP Private Service Connect endpoint with private DNS resolution.
+    This is separate from private_service_connect which is for dedicated clusters.
+  EOT
+  default = {
+    enabled = false
+  }
+
+  validation {
+    condition     = !var.private_link_attachment.enabled || var.private_link_attachment.network != null
+    error_message = "network is required when Private Link Attachment is enabled"
+  }
+
+  validation {
+    condition     = !var.private_link_attachment.enabled || var.private_link_attachment.subnetwork != null
+    error_message = "subnetwork is required when Private Link Attachment is enabled"
+  }
+}
+
 variable "project_id" {
   description = "Project ID to add Kafka secrets"
   type        = string

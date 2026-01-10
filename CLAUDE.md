@@ -41,9 +41,35 @@ The module uses a two-provider setup:
 
 **Cluster type logic**: `cluster_type` variable (required) controls cluster tier - "basic", "standard", "enterprise", or "dedicated". Dedicated clusters require `dedicated_cku` configuration.
 
-**Private Service Connect**: When `private_service_connect.enabled = true`, creates a `confluent_network` with PRIVATELINK connection type and `confluent_private_link_access` for GCP project access. Only supported with dedicated clusters. Automatically sets availability to MULTI_ZONE.
+## Private Networking Options
 
-**Lifecycle protection**: `confluent_environment`, `confluent_kafka_cluster`, and `confluent_network` have `prevent_destroy = true`.
+This module supports two private networking approaches:
+
+### Private Service Connect (for Dedicated clusters)
+Variable: `private_service_connect`
+
+When `private_service_connect.enabled = true`:
+- Creates `confluent_network` with PRIVATELINK connection type
+- Creates `confluent_private_link_access` for GCP project authorization
+- Only supported with dedicated clusters
+- Automatically sets availability to MULTI_ZONE
+- User must create their own GCP PSC endpoints using the output `service_attachments`
+
+### Private Link Attachment (for Enterprise/serverless clusters)
+Variable: `private_link_attachment`
+
+When `private_link_attachment.enabled = true`:
+- Creates `confluent_private_link_attachment` (PLATT reservation in Confluent Cloud)
+- Creates full GCP-side infrastructure automatically:
+  - `google_compute_address` - Static internal IP
+  - `google_compute_forwarding_rule` - PSC endpoint
+  - `google_dns_managed_zone` - Private DNS zone (`<region>.gcp.private.confluent.cloud`)
+  - `google_dns_record_set` - Wildcard A record
+- Creates `confluent_private_link_attachment_connection` to register endpoint with Confluent
+
+**Note:** These options are mutually exclusive.
+
+**Lifecycle protection**: `confluent_environment`, `confluent_kafka_cluster`, `confluent_network`, and `confluent_private_link_attachment` have `prevent_destroy = true`.
 
 ## Required Variables
 
