@@ -36,6 +36,28 @@ This module uses Confluent provider v2.x which has breaking changes:
    - `project_env = "prod"` → `cluster_type = "standard"`
 4. Run `terraform state rm` for the Schema Registry cluster resource before applying (it's now a data source)
 
+## Secret Naming
+
+GCP Secret Manager secrets include the cluster type in their names to avoid collisions when multiple clusters exist in the same project. Secret names follow this pattern:
+
+```
+kafka_cluster_api_key_<cluster_type>
+kafka_cluster_api_secret_<cluster_type>
+kafka_cluster_bootstrap_server_<cluster_type>
+kafka_schema_registry_key_<cluster_type>
+kafka_schema_registry_secret_<cluster_type>
+kafka_schema_registry_url_<cluster_type>
+spring_cloud_stream_kafka_binder_brokers_<cluster_type>
+spring_kafka_properties_sasl_jaas_config_<cluster_type>
+spring_kafka_properties_schema_registry_basic_auth_user_info_<cluster_type>
+```
+
+For example, a `standard` cluster creates `kafka_cluster_api_key_standard`, while an `enterprise` cluster creates `kafka_cluster_api_key_enterprise`.
+
+**Breaking Change**: If upgrading from a version without cluster type suffixes, you'll need to either:
+1. Migrate your applications to use the new secret names, or
+2. Run `terraform state rm` for the old secrets and let Terraform create the new ones
+
 ## Private Service Connect
 
 This module supports Private Service Connect for dedicated clusters. When enabled, traffic between your GCP applications and Confluent Cloud does not traverse the public internet.

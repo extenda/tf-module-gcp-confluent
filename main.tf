@@ -11,17 +11,20 @@ locals {
   platt_name        = local.platt_enabled ? coalesce(var.private_link_attachment.name, "${var.name}-platt") : null
   platt_dns_domain  = local.platt_enabled ? "${var.region}.gcp.private.confluent.cloud" : null
 
-  gcp_kafka_secrets = {
-    kafka_cluster_api_key          = confluent_api_key.api_key.id
-    kafka_cluster_api_secret       = confluent_api_key.api_key.secret
-    kafka_cluster_bootstrap_server = replace(confluent_kafka_cluster.cluster.bootstrap_endpoint, "SASL_SSL://", "")
-    kafka_schema_registry_key      = confluent_api_key.registry_api_key.id
-    kafka_schema_registry_secret   = confluent_api_key.registry_api_key.secret
-    kafka_schema_registry_url      = data.confluent_schema_registry_cluster.registry.rest_endpoint
+  # Include cluster_type in secret names to avoid collisions when multiple clusters exist
+  cluster_type_suffix = var.cluster_type
 
-    spring_cloud_stream_kafka_binder_brokers                     = confluent_kafka_cluster.cluster.bootstrap_endpoint
-    spring_kafka_properties_sasl_jaas_config                     = "org.apache.kafka.common.security.plain.PlainLoginModule required username=\"${confluent_api_key.api_key.id}\" password=\"${confluent_api_key.api_key.secret}\";"
-    spring_kafka_properties_schema_registry_basic_auth_user_info = "${confluent_api_key.registry_api_key.id}:${confluent_api_key.registry_api_key.secret}"
+  gcp_kafka_secrets = {
+    "kafka_cluster_api_key_${local.cluster_type_suffix}"          = confluent_api_key.api_key.id
+    "kafka_cluster_api_secret_${local.cluster_type_suffix}"       = confluent_api_key.api_key.secret
+    "kafka_cluster_bootstrap_server_${local.cluster_type_suffix}" = replace(confluent_kafka_cluster.cluster.bootstrap_endpoint, "SASL_SSL://", "")
+    "kafka_schema_registry_key_${local.cluster_type_suffix}"      = confluent_api_key.registry_api_key.id
+    "kafka_schema_registry_secret_${local.cluster_type_suffix}"   = confluent_api_key.registry_api_key.secret
+    "kafka_schema_registry_url_${local.cluster_type_suffix}"      = data.confluent_schema_registry_cluster.registry.rest_endpoint
+
+    "spring_cloud_stream_kafka_binder_brokers_${local.cluster_type_suffix}"                     = confluent_kafka_cluster.cluster.bootstrap_endpoint
+    "spring_kafka_properties_sasl_jaas_config_${local.cluster_type_suffix}"                     = "org.apache.kafka.common.security.plain.PlainLoginModule required username=\"${confluent_api_key.api_key.id}\" password=\"${confluent_api_key.api_key.secret}\";"
+    "spring_kafka_properties_schema_registry_basic_auth_user_info_${local.cluster_type_suffix}" = "${confluent_api_key.registry_api_key.id}:${confluent_api_key.registry_api_key.secret}"
   }
 }
 

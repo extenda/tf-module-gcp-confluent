@@ -1,6 +1,6 @@
 output "kafka_cluster_url" {
   description = "URL of the kafka cluster"
-  value       = local.gcp_kafka_secrets.kafka_cluster_bootstrap_server
+  value       = local.gcp_kafka_secrets["kafka_cluster_bootstrap_server_${local.cluster_type_suffix}"]
 }
 
 output "kafka_cluster_api_key" {
