@@ -183,7 +183,6 @@ After applying, your applications in the specified VPC can connect to Kafka usin
 | private\_service\_connect | Private Service Connect configuration. Only supported with dedicated cluster type. | `object` | `{ enabled = false }` | no |
 | project\_id | Project ID to add Kafka secrets | `string` | n/a | yes |
 | region | Region to create cluster in | `string` | `"europe-west1"` | no |
-| terraform\_runner\_user\_id | ID of a user account to use for API keys creation | `string` | `"u-4vy3kp"` | no |
 
 ### private\_service\_connect Object
 

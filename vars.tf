@@ -111,9 +111,3 @@ variable "project_id" {
   description = "Project ID to add Kafka secrets"
   type        = string
 }
-
-variable "terraform_runner_user_id" {
-  type        = string
-  default     = "u-4vy3kp"
-  description = "ID of a user account to use for API keys creation"
-}

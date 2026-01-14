@@ -242,13 +242,31 @@ resource "confluent_kafka_cluster" "cluster" {
   depends_on = [confluent_private_link_access.gcp]
 }
 
+# Service Account for Kafka cluster access
+resource "confluent_service_account" "kafka" {
+  display_name = "${var.name}-kafka-sa"
+  description  = "Service account for ${var.name} Kafka cluster access"
+}
+
+# Grant the service account CloudClusterAdmin role on the Kafka cluster
+resource "confluent_role_binding" "kafka_cluster_admin" {
+  principal   = "User:${confluent_service_account.kafka.id}"
+  role_name   = "CloudClusterAdmin"
+  crn_pattern = confluent_kafka_cluster.cluster.rbac_crn
+}
+
 resource "confluent_api_key" "api_key" {
-  display_name = "Terraform Runner API key"
-  description  = "Created by Terraform"
+  display_name = "${var.name} Kafka API key"
+  description  = "API key for ${var.name} Kafka cluster access"
+
+  # Skip API key verification - required when cluster uses private networking
+  # and Terraform cannot reach the private endpoint
+  disable_wait_for_ready = true
+
   owner {
-    id          = var.terraform_runner_user_id
-    api_version = "iam/v2"
-    kind        = "User"
+    id          = confluent_service_account.kafka.id
+    api_version = confluent_service_account.kafka.api_version
+    kind        = confluent_service_account.kafka.kind
   }
 
   managed_resource {
@@ -260,6 +278,8 @@ resource "confluent_api_key" "api_key" {
       id = local.environment_id
     }
   }
+
+  depends_on = [confluent_role_binding.kafka_cluster_admin]
 }
 
 # Schema Registry is auto-provisioned with environments in provider v2.0+
@@ -275,16 +295,38 @@ data "confluent_schema_registry_cluster" "registry" {
   depends_on = [confluent_kafka_cluster.cluster]
 }
 
+# Service Account for Schema Registry access - only created when creating a new environment
+resource "confluent_service_account" "schema_registry" {
+  count = var.create_environment ? 1 : 0
+
+  display_name = "${var.name}-schema-registry-sa"
+  description  = "Service account for ${var.name} Schema Registry access"
+}
+
+# Grant the service account ResourceOwner role on the Schema Registry
+resource "confluent_role_binding" "schema_registry_resource_owner" {
+  count = var.create_environment ? 1 : 0
+
+  principal   = "User:${confluent_service_account.schema_registry[0].id}"
+  role_name   = "ResourceOwner"
+  crn_pattern = "${data.confluent_schema_registry_cluster.registry[0].resource_name}/subject=*"
+}
+
 # Schema Registry API key - only created when creating a new environment
 resource "confluent_api_key" "registry_api_key" {
   count = var.create_environment ? 1 : 0
 
-  display_name = "Registry API key"
-  description  = "Created by Terraform"
+  display_name = "${var.name} Schema Registry API key"
+  description  = "API key for ${var.name} Schema Registry access"
+
+  # Skip API key verification - required when cluster uses private networking
+  # and Terraform cannot reach the private endpoint
+  disable_wait_for_ready = true
+
   owner {
-    id          = var.terraform_runner_user_id
-    api_version = "iam/v2"
-    kind        = "User"
+    id          = confluent_service_account.schema_registry[0].id
+    api_version = confluent_service_account.schema_registry[0].api_version
+    kind        = confluent_service_account.schema_registry[0].kind
   }
 
   managed_resource {
@@ -296,6 +338,8 @@ resource "confluent_api_key" "registry_api_key" {
       id = local.environment_id
     }
   }
+
+  depends_on = [confluent_role_binding.schema_registry_resource_owner]
 }
 
 resource "google_secret_manager_secret" "kafka_secret_id" {
