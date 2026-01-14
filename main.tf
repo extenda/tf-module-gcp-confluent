@@ -17,18 +17,25 @@ locals {
   # Include cluster_type in secret names to avoid collisions when multiple clusters exist
   cluster_type_suffix = var.cluster_type
 
-  gcp_kafka_secrets = {
+  # Base Kafka secrets (always created)
+  gcp_kafka_secrets_base = {
     "kafka_cluster_api_key_${local.cluster_type_suffix}"          = confluent_api_key.api_key.id
     "kafka_cluster_api_secret_${local.cluster_type_suffix}"       = confluent_api_key.api_key.secret
     "kafka_cluster_bootstrap_server_${local.cluster_type_suffix}" = replace(confluent_kafka_cluster.cluster.bootstrap_endpoint, "SASL_SSL://", "")
-    "kafka_schema_registry_key_${local.cluster_type_suffix}"      = confluent_api_key.registry_api_key.id
-    "kafka_schema_registry_secret_${local.cluster_type_suffix}"   = confluent_api_key.registry_api_key.secret
-    "kafka_schema_registry_url_${local.cluster_type_suffix}"      = data.confluent_schema_registry_cluster.registry.rest_endpoint
 
-    "spring_cloud_stream_kafka_binder_brokers_${local.cluster_type_suffix}"                     = confluent_kafka_cluster.cluster.bootstrap_endpoint
-    "spring_kafka_properties_sasl_jaas_config_${local.cluster_type_suffix}"                     = "org.apache.kafka.common.security.plain.PlainLoginModule required username=\"${confluent_api_key.api_key.id}\" password=\"${confluent_api_key.api_key.secret}\";"
-    "spring_kafka_properties_schema_registry_basic_auth_user_info_${local.cluster_type_suffix}" = "${confluent_api_key.registry_api_key.id}:${confluent_api_key.registry_api_key.secret}"
+    "spring_cloud_stream_kafka_binder_brokers_${local.cluster_type_suffix}" = confluent_kafka_cluster.cluster.bootstrap_endpoint
+    "spring_kafka_properties_sasl_jaas_config_${local.cluster_type_suffix}" = "org.apache.kafka.common.security.plain.PlainLoginModule required username=\"${confluent_api_key.api_key.id}\" password=\"${confluent_api_key.api_key.secret}\";"
   }
+
+  # Schema Registry secrets (only when creating new environment)
+  gcp_kafka_secrets_registry = var.create_environment ? {
+    "kafka_schema_registry_key_${local.cluster_type_suffix}"                                    = confluent_api_key.registry_api_key[0].id
+    "kafka_schema_registry_secret_${local.cluster_type_suffix}"                                 = confluent_api_key.registry_api_key[0].secret
+    "kafka_schema_registry_url_${local.cluster_type_suffix}"                                    = data.confluent_schema_registry_cluster.registry[0].rest_endpoint
+    "spring_kafka_properties_schema_registry_basic_auth_user_info_${local.cluster_type_suffix}" = "${confluent_api_key.registry_api_key[0].id}:${confluent_api_key.registry_api_key[0].secret}"
+  } : {}
+
+  gcp_kafka_secrets = merge(local.gcp_kafka_secrets_base, local.gcp_kafka_secrets_registry)
 }
 
 data "google_secret_manager_secret_version" "confluent_secrets" {
@@ -257,7 +264,10 @@ resource "confluent_api_key" "api_key" {
 
 # Schema Registry is auto-provisioned with environments in provider v2.0+
 # Use data source to reference the existing Schema Registry cluster
+# Only created when creating a new environment
 data "confluent_schema_registry_cluster" "registry" {
+  count = var.create_environment ? 1 : 0
+
   environment {
     id = local.environment_id
   }
@@ -265,7 +275,10 @@ data "confluent_schema_registry_cluster" "registry" {
   depends_on = [confluent_kafka_cluster.cluster]
 }
 
+# Schema Registry API key - only created when creating a new environment
 resource "confluent_api_key" "registry_api_key" {
+  count = var.create_environment ? 1 : 0
+
   display_name = "Registry API key"
   description  = "Created by Terraform"
   owner {
@@ -275,9 +288,9 @@ resource "confluent_api_key" "registry_api_key" {
   }
 
   managed_resource {
-    id          = data.confluent_schema_registry_cluster.registry.id
-    api_version = data.confluent_schema_registry_cluster.registry.api_version
-    kind        = data.confluent_schema_registry_cluster.registry.kind
+    id          = data.confluent_schema_registry_cluster.registry[0].id
+    api_version = data.confluent_schema_registry_cluster.registry[0].api_version
+    kind        = data.confluent_schema_registry_cluster.registry[0].kind
 
     environment {
       id = local.environment_id

@@ -90,6 +90,8 @@ module "confluent" {
 }
 ```
 
+**Note:** When using an existing environment, the module skips creating Schema Registry API keys and related secrets. The assumption is that Schema Registry credentials are already managed separately for the existing environment.
+
 ## Private Service Connect
 
 This module supports Private Service Connect for dedicated clusters. When enabled, traffic between your GCP applications and Confluent Cloud does not traverse the public internet.
