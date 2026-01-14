@@ -58,6 +58,38 @@ For example, a `standard` cluster creates `kafka_cluster_api_key_standard`, whil
 1. Migrate your applications to use the new secret names, or
 2. Run `terraform state rm` for the old secrets and let Terraform create the new ones
 
+## Environment Configuration
+
+By default, the module creates a new Confluent environment. You can also use an existing environment by setting `create_environment = false` and providing the `environment_id`.
+
+### Create New Environment (default)
+
+```hcl
+module "confluent" {
+  source = "github.com/extenda/tf-module-gcp-confluent"
+
+  environment  = "my-new-environment"
+  name         = "my-kafka-cluster"
+  cluster_type = "enterprise"
+  project_id   = "my-gcp-project"
+}
+```
+
+### Use Existing Environment
+
+```hcl
+module "confluent" {
+  source = "github.com/extenda/tf-module-gcp-confluent"
+
+  create_environment = false
+  environment_id     = "env-abc123"
+  environment        = "unused"  # Required but ignored when using existing environment
+  name               = "my-kafka-cluster"
+  cluster_type       = "enterprise"
+  project_id         = "my-gcp-project"
+}
+```
+
 ## Private Service Connect
 
 This module supports Private Service Connect for dedicated clusters. When enabled, traffic between your GCP applications and Confluent Cloud does not traverse the public internet.
@@ -140,8 +172,10 @@ After applying, your applications in the specified VPC can connect to Kafka usin
 | cluster\_type | The type of Kafka cluster. Accepted values are: basic, standard, enterprise, dedicated | `string` | n/a | yes |
 | confluent\_auth\_project | GCP project ID having secret for confluentcloud credentials | `string` | `"tf-admin-90301274"` | no |
 | confluent\_secrets | List of secrets to extract from Secret Manager for Auth | `list(string)` | <pre>[<br>  "tf-confluent-api-key",<br>  "tf-confluent-api-secret"<br>]</pre> | no |
+| create\_environment | Whether to create a new Confluent environment. Set to false to use an existing environment. | `bool` | `true` | no |
 | dedicated\_cku | Number of CKUs for dedicated cluster. Required when cluster\_type is 'dedicated'. Minimum 2 for MULTI\_ZONE. | `number` | `2` | no |
-| environment | Environment display name to create | `string` | n/a | yes |
+| environment | Confluent environment display name (used when creating a new environment) | `string` | n/a | yes |
+| environment\_id | ID of an existing Confluent environment. Required when create\_environment is false. | `string` | `null` | no |
 | name | The name of the cluster | `string` | n/a | yes |
 | private\_link\_attachment | Private Link Attachment (PLATT) configuration. For Enterprise/serverless clusters. | `object` | `{ enabled = false }` | no |
 | private\_service\_connect | Private Service Connect configuration. Only supported with dedicated cluster type. | `object` | `{ enabled = false }` | no |
@@ -174,7 +208,7 @@ After applying, your applications in the specified VPC can connect to Kafka usin
 | Name | Description |
 |------|-------------|
 | cluster\_id | ID of created kafka cluster |
-| environment\_id | ID of created confluent environment |
+| environment\_id | ID of the Confluent environment (created or existing) |
 | kafka\_cluster\_api\_key | API Key/Secret for the Kafka cluster |
 | kafka\_cluster\_url | URL of the kafka cluster |
 | private\_link\_attachment | Private Link Attachment (PLATT) configuration including endpoint details and DNS zone |
