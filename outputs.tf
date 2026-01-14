@@ -13,8 +13,8 @@ output "kafka_cluster_api_key" {
 }
 
 output "environment_id" {
-  description = "ID of created confluent environment"
-  value       = confluent_environment.environment.id
+  description = "ID of the Confluent environment"
+  value       = local.environment_id
 }
 
 output "cluster_id" {

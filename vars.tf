@@ -11,8 +11,20 @@ variable "confluent_secrets" {
 }
 
 variable "environment" {
-  description = "Environment ID to create cluster in"
+  description = "Confluent environment display name (used when creating a new environment)"
   type        = string
+}
+
+variable "create_environment" {
+  description = "Whether to create a new Confluent environment. Set to false to use an existing environment."
+  type        = bool
+  default     = true
+}
+
+variable "environment_id" {
+  description = "ID of an existing Confluent environment. Required when create_environment is false."
+  type        = string
+  default     = null
 }
 
 variable "name" {

@@ -1,4 +1,7 @@
 locals {
+  # Environment ID - use existing or created
+  environment_id = var.create_environment ? confluent_environment.environment[0].id : var.environment_id
+
   # Default zones for Private Service Connect based on region
   psc_zones = var.private_service_connect.enabled ? coalesce(
     var.private_service_connect.zones,
@@ -40,6 +43,7 @@ provider "confluent" {
 }
 
 resource "confluent_environment" "environment" {
+  count        = var.create_environment ? 1 : 0
   display_name = var.environment
 
   lifecycle {
@@ -58,7 +62,7 @@ resource "confluent_network" "private_service_connect" {
   zones            = local.psc_zones
 
   environment {
-    id = confluent_environment.environment.id
+    id = local.environment_id
   }
 
   dns_config {
@@ -81,7 +85,7 @@ resource "confluent_private_link_access" "gcp" {
   }
 
   environment {
-    id = confluent_environment.environment.id
+    id = local.environment_id
   }
 
   network {
@@ -102,7 +106,7 @@ resource "confluent_private_link_attachment" "platt" {
   display_name = local.platt_name
 
   environment {
-    id = confluent_environment.environment.id
+    id = local.environment_id
   }
 
   lifecycle {
@@ -143,7 +147,7 @@ resource "confluent_private_link_attachment_connection" "platt" {
   display_name = "${local.platt_name}-connection"
 
   environment {
-    id = confluent_environment.environment.id
+    id = local.environment_id
   }
 
   gcp {
@@ -193,7 +197,7 @@ resource "confluent_kafka_cluster" "cluster" {
   availability = var.private_service_connect.enabled ? "MULTI_ZONE" : var.availability
 
   environment {
-    id = confluent_environment.environment.id
+    id = local.environment_id
   }
 
   # Network reference for Private Service Connect
@@ -246,7 +250,7 @@ resource "confluent_api_key" "api_key" {
     kind        = confluent_kafka_cluster.cluster.kind
 
     environment {
-      id = confluent_environment.environment.id
+      id = local.environment_id
     }
   }
 }
@@ -255,7 +259,7 @@ resource "confluent_api_key" "api_key" {
 # Use data source to reference the existing Schema Registry cluster
 data "confluent_schema_registry_cluster" "registry" {
   environment {
-    id = confluent_environment.environment.id
+    id = local.environment_id
   }
 
   depends_on = [confluent_kafka_cluster.cluster]
@@ -276,7 +280,7 @@ resource "confluent_api_key" "registry_api_key" {
     kind        = data.confluent_schema_registry_cluster.registry.kind
 
     environment {
-      id = confluent_environment.environment.id
+      id = local.environment_id
     }
   }
 }
