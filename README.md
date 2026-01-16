@@ -166,11 +166,55 @@ When enabled, the module creates:
 
 After applying, your applications in the specified VPC can connect to Kafka using the private endpoint automatically via DNS resolution.
 
+## Cluster Link
+
+This module supports creating a cluster link to replicate data from an existing source cluster. The created cluster acts as the **destination**, receiving data from the source cluster via a destination-initiated link.
+
+This is useful for:
+- Disaster recovery (DR) setups
+- Data migration between clusters
+- Multi-region replication
+
+### Usage
+
+```hcl
+module "confluent" {
+  source = "github.com/extenda/tf-module-gcp-confluent"
+
+  environment  = "production"
+  name         = "my-kafka-cluster"
+  cluster_type = "enterprise"
+  project_id   = "my-gcp-project"
+
+  cluster_link = {
+    enabled                   = true
+    link_name                 = "source-to-dest-link"  # Optional
+    source_cluster_id         = "lkc-abc123"
+    source_bootstrap_endpoint = "pkc-xxxxx.us-central1.gcp.confluent.cloud:9092"
+    source_api_key            = var.source_api_key
+    source_api_secret         = var.source_api_secret
+    mirror_topics             = ["orders", "events", "users"]  # Optional
+  }
+}
+```
+
+### Network Considerations
+
+The module creates a **destination-initiated** cluster link, meaning the destination cluster initiates outbound connections to the source cluster. This works well when:
+
+- The destination cluster uses private networking (PLATT) and the source cluster is public
+- The destination can reach the source's bootstrap endpoint
+
+### Mirror Topics
+
+When `mirror_topics` is specified, the module creates `confluent_kafka_mirror_topic` resources for each topic. These mirror topics automatically replicate data from the corresponding source topics.
+
 ## Inputs
 
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
 | availability | The availability zone configuration of the Kafka cluster. Accepted values are: SINGLE\_ZONE and MULTI\_ZONE | `string` | `"SINGLE_ZONE"` | no |
+| cluster\_link | Cluster Link configuration for replicating data from an existing source cluster. | `object` | `{ enabled = false }` | no |
 | cluster\_type | The type of Kafka cluster. Accepted values are: basic, standard, enterprise, dedicated | `string` | n/a | yes |
 | confluent\_auth\_project | GCP project ID having secret for confluentcloud credentials | `string` | `"tf-admin-90301274"` | no |
 | confluent\_secrets | List of secrets to extract from Secret Manager for Auth | `list(string)` | <pre>[<br>  "tf-confluent-api-key",<br>  "tf-confluent-api-secret"<br>]</pre> | no |
@@ -204,11 +248,24 @@ After applying, your applications in the specified VPC can connect to Kafka usin
 | gcp\_project | GCP project for the PSC endpoint (defaults to project\_id) | `string` | no |
 | ip\_address | Specific internal IP to use for the endpoint | `string` | no |
 
+### cluster\_link Object
+
+| Name | Description | Type | Required |
+|------|-------------|------|:--------:|
+| enabled | Enable Cluster Link | `bool` | yes |
+| source\_cluster\_id | ID of the source Kafka cluster (e.g., "lkc-abc123") | `string` | yes (when enabled) |
+| source\_bootstrap\_endpoint | Bootstrap endpoint of the source cluster | `string` | yes (when enabled) |
+| source\_api\_key | API key for authenticating to the source cluster | `string` | yes (when enabled) |
+| source\_api\_secret | API secret for authenticating to the source cluster | `string` | yes (when enabled) |
+| link\_name | Custom name for the cluster link (defaults to "\<cluster\_name\>-link") | `string` | no |
+| mirror\_topics | List of topic names to create as mirror topics | `list(string)` | no |
+
 ## Outputs
 
 | Name | Description |
 |------|-------------|
 | cluster\_id | ID of created kafka cluster |
+| cluster\_link | Cluster Link configuration including link name, mode, source cluster ID, and mirror topics |
 | environment\_id | ID of the Confluent environment (created or existing) |
 | kafka\_cluster\_api\_key | API Key/Secret for the Kafka cluster |
 | kafka\_cluster\_url | URL of the kafka cluster |

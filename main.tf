@@ -54,7 +54,7 @@ resource "confluent_environment" "environment" {
   display_name = var.environment
 
   lifecycle {
-    prevent_destroy = true
+    prevent_destroy = false
   }
 }
 
@@ -77,7 +77,7 @@ resource "confluent_network" "private_service_connect" {
   }
 
   lifecycle {
-    prevent_destroy = true
+    prevent_destroy = false
   }
 }
 
@@ -117,7 +117,7 @@ resource "confluent_private_link_attachment" "platt" {
   }
 
   lifecycle {
-    prevent_destroy = true
+    prevent_destroy = false
   }
 }
 
@@ -236,7 +236,7 @@ resource "confluent_kafka_cluster" "cluster" {
   }
 
   lifecycle {
-    prevent_destroy = true
+    prevent_destroy = false
   }
 
   depends_on = [confluent_private_link_access.gcp]
@@ -362,4 +362,62 @@ resource "google_secret_manager_secret_version" "kafka_secret_value" {
 
   secret      = google_secret_manager_secret.kafka_secret_id[each.key].id
   secret_data = each.value
+}
+
+# =============================================================================
+# Cluster Link - for replicating data from an existing source cluster
+# =============================================================================
+
+locals {
+  cluster_link_enabled = var.cluster_link.enabled
+  cluster_link_name    = local.cluster_link_enabled ? coalesce(var.cluster_link.link_name, "${var.name}-link") : null
+  cluster_link_topics  = local.cluster_link_enabled ? var.cluster_link.mirror_topics : []
+}
+
+# Cluster Link - destination-initiated link from source cluster
+resource "confluent_cluster_link" "link" {
+  count = local.cluster_link_enabled ? 1 : 0
+
+  link_name = local.cluster_link_name
+  link_mode = "DESTINATION"
+
+  source_kafka_cluster {
+    id                 = var.cluster_link.source_cluster_id
+    bootstrap_endpoint = var.cluster_link.source_bootstrap_endpoint
+    credentials {
+      key    = var.cluster_link.source_api_key
+      secret = var.cluster_link.source_api_secret
+    }
+  }
+
+  destination_kafka_cluster {
+    id            = confluent_kafka_cluster.cluster.id
+    rest_endpoint = confluent_kafka_cluster.cluster.rest_endpoint
+    credentials {
+      key    = confluent_api_key.api_key.id
+      secret = confluent_api_key.api_key.secret
+    }
+  }
+}
+
+# Mirror Topics - replicate specified topics from source cluster
+resource "confluent_kafka_mirror_topic" "mirror" {
+  for_each = toset(local.cluster_link_topics)
+
+  source_kafka_topic {
+    topic_name = each.value
+  }
+
+  cluster_link {
+    link_name = confluent_cluster_link.link[0].link_name
+  }
+
+  kafka_cluster {
+    id            = confluent_kafka_cluster.cluster.id
+    rest_endpoint = confluent_kafka_cluster.cluster.rest_endpoint
+    credentials {
+      key    = confluent_api_key.api_key.id
+      secret = confluent_api_key.api_key.secret
+    }
+  }
 }

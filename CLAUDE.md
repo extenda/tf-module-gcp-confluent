@@ -71,6 +71,32 @@ When `private_link_attachment.enabled = true`:
 
 **Lifecycle protection**: `confluent_environment`, `confluent_kafka_cluster`, `confluent_network`, and `confluent_private_link_attachment` have `prevent_destroy = true`.
 
+## Cluster Link (Data Replication)
+
+Variable: `cluster_link`
+
+When `cluster_link.enabled = true`:
+- Creates a destination-initiated `confluent_cluster_link` to replicate data from an existing source cluster
+- The created cluster acts as the **destination** (receives data from source)
+- Supports optional mirror topic creation via `mirror_topics` list
+
+**Configuration:**
+```hcl
+cluster_link = {
+  enabled                   = true
+  link_name                 = "my-cluster-link"           # Optional, defaults to "<cluster_name>-link"
+  source_cluster_id         = "lkc-abc123"                # Required: source cluster ID
+  source_bootstrap_endpoint = "pkc-xxxxx.region.gcp.confluent.cloud:9092"  # Required
+  source_api_key            = "XXXXXXXXXX"                # Required: API key for source cluster
+  source_api_secret         = "XXXXXXXXXX"                # Required: API secret for source cluster
+  mirror_topics             = ["topic1", "topic2"]        # Optional: topics to mirror
+}
+```
+
+**Network considerations:**
+- Destination-initiated links work well when the destination has private networking (PLATT) and source is public
+- The destination cluster initiates outbound connections to the source's public endpoint
+
 ## Required Variables
 
 - `environment` - Confluent environment display name

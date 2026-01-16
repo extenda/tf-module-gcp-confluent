@@ -111,3 +111,51 @@ variable "project_id" {
   description = "Project ID to add Kafka secrets"
   type        = string
 }
+
+variable "cluster_link" {
+  type = object({
+    enabled                   = bool
+    link_name                 = optional(string)
+    source_cluster_id         = optional(string)
+    source_bootstrap_endpoint = optional(string)
+    source_api_key            = optional(string)
+    source_api_secret         = optional(string)
+    mirror_topics             = optional(list(string), [])
+  })
+  description = <<-EOT
+    Cluster Link configuration for replicating data from an existing source cluster.
+    Creates a destination-initiated cluster link where this cluster receives data from the source.
+
+    - enabled: Whether to create the cluster link
+    - link_name: Name for the cluster link (defaults to "<cluster_name>-link")
+    - source_cluster_id: ID of the source Kafka cluster (e.g., "lkc-abc123")
+    - source_bootstrap_endpoint: Bootstrap endpoint of the source cluster (e.g., "pkc-xxxxx.region.gcp.confluent.cloud:9092")
+    - source_api_key: API key for authenticating to the source cluster
+    - source_api_secret: API secret for authenticating to the source cluster
+    - mirror_topics: List of topic names to create as mirror topics (optional)
+  EOT
+  default = {
+    enabled = false
+  }
+  sensitive = true
+
+  validation {
+    condition     = !var.cluster_link.enabled || var.cluster_link.source_cluster_id != null
+    error_message = "source_cluster_id is required when cluster_link is enabled"
+  }
+
+  validation {
+    condition     = !var.cluster_link.enabled || var.cluster_link.source_bootstrap_endpoint != null
+    error_message = "source_bootstrap_endpoint is required when cluster_link is enabled"
+  }
+
+  validation {
+    condition     = !var.cluster_link.enabled || var.cluster_link.source_api_key != null
+    error_message = "source_api_key is required when cluster_link is enabled"
+  }
+
+  validation {
+    condition     = !var.cluster_link.enabled || var.cluster_link.source_api_secret != null
+    error_message = "source_api_secret is required when cluster_link is enabled"
+  }
+}
