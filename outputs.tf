@@ -22,6 +22,11 @@ output "cluster_id" {
   value       = confluent_kafka_cluster.cluster.id
 }
 
+output "rest_endpoint" {
+  description = "REST endpoint of the Kafka cluster"
+  value       = confluent_kafka_cluster.cluster.rest_endpoint
+}
+
 # Private Service Connect outputs (for dedicated clusters)
 output "private_service_connect" {
   description = "Private Service Connect configuration. Use service_attachments to create GCP Private Service Connect endpoints."
@@ -57,4 +62,91 @@ output "cluster_link" {
     source_cluster_id = var.cluster_link.source_cluster_id
     mirror_topics     = local.cluster_link_topics
   } : null
+  sensitive = true
+}
+
+# Bastion Host outputs
+output "bastion_host_public_ip" {
+  description = "Public IP address of the bastion host for SSH access."
+  value       = local.bastion_enabled ? google_compute_instance.bastion[0].network_interface[0].access_config[0].nat_ip : null
+}
+
+output "bastion_host" {
+  description = "Bastion host configuration for SSH tunneling to private Confluent clusters."
+  value = local.bastion_enabled ? {
+    public_ip       = google_compute_instance.bastion[0].network_interface[0].access_config[0].nat_ip
+    instance_name   = google_compute_instance.bastion[0].name
+    zone            = local.bastion_zone
+    project         = local.platt_gcp_project
+    psc_endpoint_ip = local.platt_enabled ? google_compute_address.platt[0].address : null
+    dns_domain      = local.platt_enabled ? local.platt_dns_domain : null
+  } : null
+}
+
+output "bastion_ssh_tunnel_instructions" {
+  description = "Instructions for using SSH tunnel to access private Confluent cluster."
+  value = local.bastion_enabled && local.platt_enabled ? (<<-EOF
+
+=== SSH Tunnel for Local Development ===
+
+1. Start the SSH tunnel on port 443 (requires sudo):
+
+   sudo gcloud compute ssh ${google_compute_instance.bastion[0].name} \
+     --zone=${local.bastion_zone} \
+     --project=${local.platt_gcp_project} \
+     --tunnel-through-iap \
+     -- -L 443:${google_compute_address.platt[0].address}:443 -N
+
+2. Add DNS entry to /etc/hosts for your cluster:
+
+   echo "127.0.0.1 ${confluent_kafka_cluster.cluster.id}.${local.platt_dns_domain}" | sudo tee -a /etc/hosts
+
+3. Run Terraform with the tunnel active.
+
+=== Alternative: Direct SSH using bastion public IP ===
+
+   sudo ssh -L 443:${google_compute_address.platt[0].address}:443 -N <user>@<bastion_public_ip>
+
+EOF
+  ) : null
+}
+
+output "bastion_github_actions_workflow" {
+  description = "GitHub Actions workflow steps for SSH tunneling via bastion."
+  value = local.bastion_enabled && local.platt_enabled ? (<<-EOF
+
+=== GitHub Actions Workflow ===
+
+1. Set up Workload Identity Federation for your GitHub repository to authenticate with GCP.
+   See: https://cloud.google.com/iam/docs/workload-identity-federation-with-deployment-pipelines
+
+2. Grant the GitHub Actions service account the following roles:
+   - roles/compute.instanceAdmin.v1 (or roles/compute.osLogin for OS Login)
+   - roles/iap.tunnelResourceAccessor (for IAP tunnel)
+
+3. Add these steps to your workflow:
+
+- name: Authenticate to Google Cloud
+  uses: google-github-actions/auth@v2
+  with:
+    workload_identity_provider: 'projects/PROJECT_NUMBER/locations/global/workloadIdentityPools/POOL_ID/providers/PROVIDER_ID'
+    service_account: 'SA_EMAIL'
+
+- name: Set up SSH tunnel via IAP
+  run: |
+    sudo gcloud compute ssh ${google_compute_instance.bastion[0].name} \
+      --zone=${local.bastion_zone} \
+      --project=${local.platt_gcp_project} \
+      --tunnel-through-iap \
+      -- -L 443:${google_compute_address.platt[0].address}:443 -N -f
+
+    # Add DNS entry for the cluster
+    echo "127.0.0.1 ${confluent_kafka_cluster.cluster.id}.${local.platt_dns_domain}" | sudo tee -a /etc/hosts
+
+- name: Run Terraform (with tunnel active)
+  run: |
+    terragrunt apply -auto-approve
+
+EOF
+  ) : null
 }

@@ -371,16 +371,18 @@ resource "google_secret_manager_secret_version" "kafka_secret_value" {
 locals {
   cluster_link_enabled = var.cluster_link.enabled
   cluster_link_name    = local.cluster_link_enabled ? coalesce(var.cluster_link.link_name, "${var.name}-link") : null
-  cluster_link_topics  = local.cluster_link_enabled ? var.cluster_link.mirror_topics : []
+  cluster_link_topics  = local.cluster_link_enabled ? nonsensitive(var.cluster_link.mirror_topics) : []
 }
 
 # Cluster Link - destination-initiated link from source cluster
+# Requires connectivity to the destination cluster's REST endpoint (e.g., via SSH tunnel for private clusters)
 resource "confluent_cluster_link" "link" {
   count = local.cluster_link_enabled ? 1 : 0
 
   link_name = local.cluster_link_name
   link_mode = "DESTINATION"
 
+  # Source cluster - the cluster to replicate from
   source_kafka_cluster {
     id                 = var.cluster_link.source_cluster_id
     bootstrap_endpoint = var.cluster_link.source_bootstrap_endpoint
@@ -390,6 +392,7 @@ resource "confluent_cluster_link" "link" {
     }
   }
 
+  # Destination cluster - the enterprise cluster (this cluster)
   destination_kafka_cluster {
     id            = confluent_kafka_cluster.cluster.id
     rest_endpoint = confluent_kafka_cluster.cluster.rest_endpoint
@@ -419,5 +422,73 @@ resource "confluent_kafka_mirror_topic" "mirror" {
       key    = confluent_api_key.api_key.id
       secret = confluent_api_key.api_key.secret
     }
+  }
+}
+
+# =============================================================================
+# Bastion Host - for SSH tunneling to private Confluent clusters
+# =============================================================================
+
+locals {
+  bastion_enabled = var.bastion_host.enabled
+  bastion_zone    = local.bastion_enabled ? coalesce(var.bastion_host.zone, "${var.region}-b") : null
+}
+
+# Service account for Bastion VM
+resource "google_service_account" "bastion" {
+  count        = local.bastion_enabled ? 1 : 0
+  project      = var.project_id
+  account_id   = substr("${var.name}-bastion", 0, 30)
+  display_name = "Bastion host for ${var.name}"
+}
+
+# Firewall rule to allow SSH traffic
+resource "google_compute_firewall" "bastion_ssh" {
+  count   = local.bastion_enabled ? 1 : 0
+  name    = "${var.name}-bastion-ssh"
+  project = local.platt_gcp_project
+  network = var.private_link_attachment.network
+
+  allow {
+    protocol = "tcp"
+    ports    = ["22"]
+  }
+
+  source_ranges = var.bastion_host.allowed_cidrs
+  target_tags   = ["bastion"]
+}
+
+# Bastion VM instance
+resource "google_compute_instance" "bastion" {
+  count        = local.bastion_enabled ? 1 : 0
+  name         = "${var.name}-bastion"
+  project      = local.platt_gcp_project
+  zone         = local.bastion_zone
+  machine_type = var.bastion_host.machine_type
+
+  tags = ["bastion"]
+
+  boot_disk {
+    initialize_params {
+      image = "debian-cloud/debian-12"
+      size  = 10
+    }
+  }
+
+  network_interface {
+    subnetwork = var.private_link_attachment.subnetwork
+    access_config {
+      # Ephemeral public IP
+    }
+  }
+
+  service_account {
+    email  = google_service_account.bastion[0].email
+    scopes = ["cloud-platform"]
+  }
+
+  # Enable OS Login for SSH key management via IAM
+  metadata = {
+    enable-oslogin = "TRUE"
   }
 }

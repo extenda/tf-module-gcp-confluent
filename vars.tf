@@ -112,6 +112,28 @@ variable "project_id" {
   type        = string
 }
 
+variable "bastion_host" {
+  type = object({
+    enabled       = bool
+    machine_type  = optional(string, "e2-micro")
+    zone          = optional(string)
+    allowed_cidrs = optional(list(string), ["0.0.0.0/0"])
+  })
+  description = <<-EOT
+    Bastion host configuration for SSH tunneling to private Confluent clusters.
+    Creates a GCP VM that can be used as an SSH jump host for port forwarding.
+    Simpler alternative to VPN for accessing private endpoints.
+
+    - enabled: Whether to create the bastion host
+    - machine_type: GCP machine type for the VM (default: e2-micro)
+    - zone: GCP zone for the VM (defaults to region-b)
+    - allowed_cidrs: Source CIDRs allowed to SSH to the bastion (default: ["0.0.0.0/0"])
+  EOT
+  default = {
+    enabled = false
+  }
+}
+
 variable "cluster_link" {
   type = object({
     enabled                   = bool
@@ -125,6 +147,7 @@ variable "cluster_link" {
   description = <<-EOT
     Cluster Link configuration for replicating data from an existing source cluster.
     Creates a destination-initiated cluster link where this cluster receives data from the source.
+    Requires connectivity to this cluster's REST endpoint (e.g., via SSH tunnel for private clusters).
 
     - enabled: Whether to create the cluster link
     - link_name: Name for the cluster link (defaults to "<cluster_name>-link")
