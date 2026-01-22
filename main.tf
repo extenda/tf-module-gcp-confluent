@@ -372,6 +372,10 @@ locals {
   cluster_link_enabled = var.cluster_link.enabled
   cluster_link_name    = local.cluster_link_enabled ? coalesce(var.cluster_link.link_name, "${var.name}-link") : null
   cluster_link_topics  = local.cluster_link_enabled ? nonsensitive(var.cluster_link.mirror_topics) : []
+  # When local_rest_endpoint_port is set, use localhost with custom port for SSH tunnel access
+  cluster_rest_endpoint = var.cluster_link.local_rest_endpoint_port != null ? (
+    "https://${confluent_kafka_cluster.cluster.id}.${var.region}.gcp.private.confluent.cloud:${var.cluster_link.local_rest_endpoint_port}"
+  ) : confluent_kafka_cluster.cluster.rest_endpoint
 }
 
 # Cluster Link - destination-initiated link from source cluster
@@ -395,11 +399,17 @@ resource "confluent_cluster_link" "link" {
   # Destination cluster - the enterprise cluster (this cluster)
   destination_kafka_cluster {
     id            = confluent_kafka_cluster.cluster.id
-    rest_endpoint = confluent_kafka_cluster.cluster.rest_endpoint
+    rest_endpoint = local.cluster_rest_endpoint
     credentials {
       key    = confluent_api_key.api_key.id
       secret = confluent_api_key.api_key.secret
     }
+  }
+
+  lifecycle {
+    ignore_changes = [
+      destination_kafka_cluster[0].rest_endpoint
+    ]
   }
 }
 
@@ -417,11 +427,17 @@ resource "confluent_kafka_mirror_topic" "mirror" {
 
   kafka_cluster {
     id            = confluent_kafka_cluster.cluster.id
-    rest_endpoint = confluent_kafka_cluster.cluster.rest_endpoint
+    rest_endpoint = local.cluster_rest_endpoint
     credentials {
       key    = confluent_api_key.api_key.id
       secret = confluent_api_key.api_key.secret
     }
+  }
+
+  lifecycle {
+    ignore_changes = [
+      kafka_cluster[0].rest_endpoint
+    ]
   }
 }
 
