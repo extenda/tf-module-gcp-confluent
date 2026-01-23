@@ -12,6 +12,46 @@ This is a Terraform module that provisions Confluent Cloud Kafka infrastructure 
 
 Schema Registry is auto-provisioned with environments in Confluent provider v2.x and accessed via data source.
 
+## Module Structure
+
+The module is split into two submodules for better separation of concerns:
+
+```
+tf-module-gcp-confluent/
+├── modules/
+│   ├── network/           # Environment, private networking, bastion, Schema Registry
+│   │   ├── main.tf
+│   │   ├── variables.tf
+│   │   ├── outputs.tf
+│   │   └── providers.tf
+│   └── cluster/           # Kafka cluster, API keys, secrets, cluster link
+│       ├── main.tf
+│       ├── variables.tf
+│       ├── outputs.tf
+│       └── providers.tf
+├── main.tf                # Root module that composes both submodules
+├── vars.tf                # Passthrough variables
+├── outputs.tf             # Passthrough outputs
+└── providers.tf           # Provider configuration
+```
+
+### Network Module (`modules/network`)
+
+Manages environment-level and networking resources:
+- `confluent_environment` (conditional)
+- Private Service Connect: `confluent_network`, `confluent_private_link_access`
+- Private Link Attachment: `confluent_private_link_attachment`, GCP compute/DNS resources
+- Bastion host: `google_service_account`, `google_compute_firewall`, `google_compute_instance`
+- Schema Registry: service account, role binding, API key
+
+### Cluster Module (`modules/cluster`)
+
+Manages cluster-level resources:
+- `confluent_kafka_cluster`
+- Kafka service account, role binding, API key
+- GCP Secret Manager secrets
+- Cluster link and mirror topics
+
 ## Commands
 
 ```bash
@@ -21,8 +61,8 @@ terraform init
 # Validate configuration
 terraform validate
 
-# Format code
-terraform fmt
+# Format code (recursive for submodules)
+terraform fmt -recursive
 
 # Plan changes
 terraform plan
@@ -69,7 +109,7 @@ When `private_link_attachment.enabled = true`:
 
 **Note:** These options are mutually exclusive.
 
-**Lifecycle protection**: `confluent_environment`, `confluent_kafka_cluster`, `confluent_network`, and `confluent_private_link_attachment` have `prevent_destroy = true`.
+**Lifecycle protection**: `confluent_environment`, `confluent_kafka_cluster`, `confluent_network`, and `confluent_private_link_attachment` have `prevent_destroy = false` (can be changed to `true` for production).
 
 ## Cluster Link (Data Replication)
 
@@ -106,6 +146,6 @@ cluster_link = {
 
 ## Provider Versions
 
-- Terraform >= 1.5.7
+- Terraform >= 1.4.6
 - Confluent provider: 2.57.0
 - Google provider: ~> 4.62.0

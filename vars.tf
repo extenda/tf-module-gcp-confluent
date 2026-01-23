@@ -1,3 +1,7 @@
+# =============================================================================
+# Authentication Variables
+# =============================================================================
+
 variable "confluent_auth_project" {
   description = "GCP project ID having secret for confluentcloud credentials"
   type        = string
@@ -9,6 +13,10 @@ variable "confluent_secrets" {
   type        = list(string)
   default     = ["tf-confluent-api-key", "tf-confluent-api-secret"]
 }
+
+# =============================================================================
+# Environment Variables
+# =============================================================================
 
 variable "environment" {
   description = "Confluent environment display name (used when creating a new environment)"
@@ -26,6 +34,10 @@ variable "environment_id" {
   type        = string
   default     = null
 }
+
+# =============================================================================
+# Cluster Variables
+# =============================================================================
 
 variable "name" {
   description = "The name of the cluster"
@@ -59,6 +71,15 @@ variable "dedicated_cku" {
   description = "Number of CKUs for dedicated cluster. Required when cluster_type is 'dedicated'. Minimum 2 for MULTI_ZONE."
   default     = 2
 }
+
+variable "project_id" {
+  description = "Project ID to add Kafka secrets"
+  type        = string
+}
+
+# =============================================================================
+# Private Networking Variables
+# =============================================================================
 
 variable "private_service_connect" {
   type = object({
@@ -107,10 +128,9 @@ variable "private_link_attachment" {
   }
 }
 
-variable "project_id" {
-  description = "Project ID to add Kafka secrets"
-  type        = string
-}
+# =============================================================================
+# Bastion Host Variables
+# =============================================================================
 
 variable "bastion_host" {
   type = object({
@@ -133,6 +153,10 @@ variable "bastion_host" {
     enabled = false
   }
 }
+
+# =============================================================================
+# Cluster Link Variables
+# =============================================================================
 
 variable "cluster_link" {
   type = object({
