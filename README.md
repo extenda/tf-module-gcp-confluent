@@ -4,11 +4,53 @@
 
 This module creates a Confluent Cloud Kafka cluster on GCP and stores API Keys and Secrets in GCP Secret Manager.
 
+## Module Architecture
+
+The module is split into two submodules for better separation of concerns:
+
+```
+tf-module-gcp-confluent/
+├── modules/
+│   ├── network/           # Environment, private networking, bastion, Schema Registry
+│   │   ├── main.tf
+│   │   ├── variables.tf
+│   │   ├── outputs.tf
+│   │   └── providers.tf
+│   └── cluster/           # Kafka cluster, API keys, secrets, cluster link
+│       ├── main.tf
+│       ├── variables.tf
+│       ├── outputs.tf
+│       └── providers.tf
+├── main.tf                # Root module that composes both submodules
+├── vars.tf                # Passthrough variables
+├── outputs.tf             # Passthrough outputs
+└── providers.tf           # Provider configuration
+```
+
+### Network Module
+
+Manages environment-level and networking resources:
+- Confluent environment (conditional creation)
+- Private Service Connect network and access
+- Private Link Attachment with GCP compute/DNS resources
+- Bastion host for SSH tunneling
+- Schema Registry service account and API key
+
+### Cluster Module
+
+Manages cluster-level resources:
+- Kafka cluster
+- Kafka service account and API key
+- GCP Secret Manager secrets
+- Cluster link and mirror topics
+
+The root module composes both submodules while maintaining backward compatibility with existing configurations.
+
 ## Requirements
 
 | Name | Version |
 |------|---------|
-| terraform | >= 1.5.7 |
+| terraform | >= 1.4.6 |
 | confluent | 2.57.0 |
 | google | ~> 4.62.0 |
 
@@ -214,6 +256,7 @@ When `mirror_topics` is specified, the module creates `confluent_kafka_mirror_to
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
 | availability | The availability zone configuration of the Kafka cluster. Accepted values are: SINGLE\_ZONE and MULTI\_ZONE | `string` | `"SINGLE_ZONE"` | no |
+| bastion\_host | Bastion host configuration for SSH tunneling to private clusters. | `object` | `{ enabled = false }` | no |
 | cluster\_link | Cluster Link configuration for replicating data from an existing source cluster. | `object` | `{ enabled = false }` | no |
 | cluster\_type | The type of Kafka cluster. Accepted values are: basic, standard, enterprise, dedicated | `string` | n/a | yes |
 | confluent\_auth\_project | GCP project ID having secret for confluentcloud credentials | `string` | `"tf-admin-90301274"` | no |
@@ -248,6 +291,15 @@ When `mirror_topics` is specified, the module creates `confluent_kafka_mirror_to
 | gcp\_project | GCP project for the PSC endpoint (defaults to project\_id) | `string` | no |
 | ip\_address | Specific internal IP to use for the endpoint | `string` | no |
 
+### bastion\_host Object
+
+| Name | Description | Type | Required |
+|------|-------------|------|:--------:|
+| enabled | Enable bastion host | `bool` | yes |
+| machine\_type | GCP machine type for the VM | `string` | no (default: "e2-micro") |
+| zone | GCP zone for the VM (defaults to region-b) | `string` | no |
+| allowed\_cidrs | Source CIDRs allowed to SSH to the bastion | `list(string)` | no (default: ["0.0.0.0/0"]) |
+
 ### cluster\_link Object
 
 | Name | Description | Type | Required |
@@ -259,11 +311,16 @@ When `mirror_topics` is specified, the module creates `confluent_kafka_mirror_to
 | source\_api\_secret | API secret for authenticating to the source cluster | `string` | yes (when enabled) |
 | link\_name | Custom name for the cluster link (defaults to "\<cluster\_name\>-link") | `string` | no |
 | mirror\_topics | List of topic names to create as mirror topics | `list(string)` | no |
+| local\_rest\_endpoint\_port | Local port for SSH tunnel to REST endpoint (for private clusters) | `number` | no |
 
 ## Outputs
 
 | Name | Description |
 |------|-------------|
+| bastion\_host | Bastion host configuration including public IP, instance name, zone, and project |
+| bastion\_host\_public\_ip | Public IP address of the bastion host for SSH access |
+| bastion\_ssh\_tunnel\_instructions | Instructions for using SSH tunnel to access private Confluent cluster |
+| bastion\_github\_actions\_workflow | GitHub Actions workflow steps for SSH tunneling via bastion |
 | cluster\_id | ID of created kafka cluster |
 | cluster\_link | Cluster Link configuration including link name, mode, source cluster ID, and mirror topics |
 | environment\_id | ID of the Confluent environment (created or existing) |
@@ -271,3 +328,5 @@ When `mirror_topics` is specified, the module creates `confluent_kafka_mirror_to
 | kafka\_cluster\_url | URL of the kafka cluster |
 | private\_link\_attachment | Private Link Attachment (PLATT) configuration including endpoint details and DNS zone |
 | private\_service\_connect | Private Service Connect configuration including service attachments for creating GCP endpoints |
+| rest\_endpoint | REST endpoint of the Kafka cluster |
+| schema\_registry | Schema Registry API key/secret/URL (only when create\_environment is true) |
