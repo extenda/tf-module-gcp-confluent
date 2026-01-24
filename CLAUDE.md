@@ -14,7 +14,7 @@ Schema Registry is auto-provisioned with environments in Confluent provider v2.x
 
 ## Module Structure
 
-The module is split into two submodules for better separation of concerns:
+The module is split into three submodules for better separation of concerns:
 
 ```
 tf-module-gcp-confluent/
@@ -24,12 +24,17 @@ tf-module-gcp-confluent/
 │   │   ├── variables.tf
 │   │   ├── outputs.tf
 │   │   └── providers.tf
-│   └── cluster/           # Kafka cluster, API keys, secrets, cluster link
+│   ├── cluster/           # Kafka cluster, API keys, secrets
+│   │   ├── main.tf
+│   │   ├── variables.tf
+│   │   ├── outputs.tf
+│   │   └── providers.tf
+│   └── cluster_link/      # Cluster link and mirror topics
 │       ├── main.tf
 │       ├── variables.tf
 │       ├── outputs.tf
 │       └── providers.tf
-├── main.tf                # Root module that composes both submodules
+├── main.tf                # Root module that composes all submodules
 ├── vars.tf                # Passthrough variables
 ├── outputs.tf             # Passthrough outputs
 └── providers.tf           # Provider configuration
@@ -50,7 +55,12 @@ Manages cluster-level resources:
 - `confluent_kafka_cluster`
 - Kafka service account, role binding, API key
 - GCP Secret Manager secrets
-- Cluster link and mirror topics
+
+### Cluster Link Module (`modules/cluster_link`)
+
+Manages data replication resources:
+- `confluent_cluster_link` - destination-initiated link for replicating from source cluster
+- `confluent_kafka_mirror_topic` - mirror topics for replicating specific topics
 
 ## Commands
 

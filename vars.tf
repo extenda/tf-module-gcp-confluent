@@ -160,14 +160,16 @@ variable "bastion_host" {
 
 variable "cluster_link" {
   type = object({
-    enabled                   = bool
-    link_name                 = optional(string)
-    source_cluster_id         = optional(string)
-    source_bootstrap_endpoint = optional(string)
-    source_api_key            = optional(string)
-    source_api_secret         = optional(string)
-    mirror_topics             = optional(list(string), [])
-    local_rest_endpoint_port  = optional(number)
+    enabled                      = bool
+    link_name                    = optional(string)
+    source_cluster_id            = optional(string)
+    source_bootstrap_endpoint    = optional(string)
+    source_api_key               = optional(string)
+    source_api_secret            = optional(string)
+    mirror_topics                = optional(list(string), [])
+    local_rest_endpoint_port     = optional(number)
+    acl_sync_enabled             = optional(bool, false)
+    consumer_offset_sync_enabled = optional(bool, false)
   })
   description = <<-EOT
     Cluster Link configuration for replicating data from an existing source cluster.
@@ -182,6 +184,8 @@ variable "cluster_link" {
     - source_api_secret: API secret for authenticating to the source cluster
     - mirror_topics: List of topic names to create as mirror topics (optional)
     - local_rest_endpoint_port: Local port for SSH tunnel to REST endpoint (e.g., 8443). When set, uses localhost:<port> instead of the private endpoint.
+    - acl_sync_enabled: Whether to sync ACLs from source to destination cluster (default: false)
+    - consumer_offset_sync_enabled: Whether to sync consumer offsets from source to destination cluster (default: false)
   EOT
   default = {
     enabled = false

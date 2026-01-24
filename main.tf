@@ -32,7 +32,7 @@ module "network" {
 }
 
 # =============================================================================
-# Cluster Module - Kafka Cluster, API Keys, Secrets, Cluster Link
+# Cluster Module - Kafka Cluster, API Keys, Secrets
 # =============================================================================
 
 module "cluster" {
@@ -48,7 +48,6 @@ module "cluster" {
   network_id                  = module.network.private_service_connect != null ? module.network.private_service_connect.network_id : null
   use_private_service_connect = var.private_service_connect.enabled
   schema_registry             = module.network.schema_registry
-  cluster_link                = var.cluster_link
 
   # Bastion/PLATT info for SSH tunnel instructions
   bastion_enabled       = module.network.bastion_enabled
@@ -60,4 +59,24 @@ module "cluster" {
   platt_dns_domain      = module.network.platt_dns_domain
 
   depends_on = [module.network]
+}
+
+# =============================================================================
+# Cluster Link Module - Data Replication from Source Cluster
+# =============================================================================
+
+module "cluster_link" {
+  source = "./modules/cluster_link"
+
+  cluster_link = var.cluster_link
+
+  # Destination cluster info (from cluster module)
+  destination_cluster_id            = module.cluster.cluster_id
+  destination_cluster_rest_endpoint = module.cluster.rest_endpoint
+  destination_cluster_api_key       = module.cluster.kafka_cluster_api_key.key
+  destination_cluster_api_secret    = module.cluster.kafka_cluster_api_key.secret
+  cluster_name                      = var.name
+  region                            = var.region
+
+  depends_on = [module.cluster]
 }

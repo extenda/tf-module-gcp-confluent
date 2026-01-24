@@ -64,57 +64,6 @@ variable "schema_registry" {
   sensitive = true
 }
 
-variable "cluster_link" {
-  type = object({
-    enabled                   = bool
-    link_name                 = optional(string)
-    source_cluster_id         = optional(string)
-    source_bootstrap_endpoint = optional(string)
-    source_api_key            = optional(string)
-    source_api_secret         = optional(string)
-    mirror_topics             = optional(list(string), [])
-    local_rest_endpoint_port  = optional(number)
-  })
-  description = <<-EOT
-    Cluster Link configuration for replicating data from an existing source cluster.
-    Creates a destination-initiated cluster link where this cluster receives data from the source.
-    Requires connectivity to this cluster's REST endpoint (e.g., via SSH tunnel for private clusters).
-
-    - enabled: Whether to create the cluster link
-    - link_name: Name for the cluster link (defaults to "<cluster_name>-link")
-    - source_cluster_id: ID of the source Kafka cluster (e.g., "lkc-abc123")
-    - source_bootstrap_endpoint: Bootstrap endpoint of the source cluster (e.g., "pkc-xxxxx.region.gcp.confluent.cloud:9092")
-    - source_api_key: API key for authenticating to the source cluster
-    - source_api_secret: API secret for authenticating to the source cluster
-    - mirror_topics: List of topic names to create as mirror topics (optional)
-    - local_rest_endpoint_port: Local port for SSH tunnel to REST endpoint (e.g., 8443). When set, uses localhost:<port> instead of the private endpoint.
-  EOT
-  default = {
-    enabled = false
-  }
-  sensitive = true
-
-  validation {
-    condition     = !var.cluster_link.enabled || var.cluster_link.source_cluster_id != null
-    error_message = "source_cluster_id is required when cluster_link is enabled"
-  }
-
-  validation {
-    condition     = !var.cluster_link.enabled || var.cluster_link.source_bootstrap_endpoint != null
-    error_message = "source_bootstrap_endpoint is required when cluster_link is enabled"
-  }
-
-  validation {
-    condition     = !var.cluster_link.enabled || var.cluster_link.source_api_key != null
-    error_message = "source_api_key is required when cluster_link is enabled"
-  }
-
-  validation {
-    condition     = !var.cluster_link.enabled || var.cluster_link.source_api_secret != null
-    error_message = "source_api_secret is required when cluster_link is enabled"
-  }
-}
-
 # Variables for SSH tunnel instructions (from network module)
 variable "bastion_enabled" {
   description = "Whether bastion host is enabled (from network module)"

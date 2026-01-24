@@ -78,7 +78,7 @@ output "bastion_github_actions_workflow" {
 
 output "cluster_link" {
   description = "Cluster Link configuration for data replication from source cluster."
-  value       = module.cluster.cluster_link
+  value       = module.cluster_link.cluster_link
   sensitive   = true
 }
 
