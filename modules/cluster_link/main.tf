@@ -7,12 +7,6 @@ locals {
   cluster_rest_endpoint = var.cluster_link.local_rest_endpoint_port != null ? (
     "https://${var.destination_cluster_id}.${var.region}.gcp.private.confluent.cloud:${var.cluster_link.local_rest_endpoint_port}"
   ) : var.destination_cluster_rest_endpoint
-
-  # Cluster link config map
-  cluster_link_config = {
-    "acl.sync.enable"             = tostring(var.cluster_link.acl_sync_enabled)
-    "consumer.offset.sync.enable" = tostring(var.cluster_link.consumer_offset_sync_enabled)
-  }
 }
 
 # =============================================================================
@@ -47,7 +41,7 @@ resource "confluent_cluster_link" "link" {
     }
   }
 
-  config = local.cluster_link_config
+  config = var.cluster_link.config
 
   lifecycle {
     ignore_changes = [
