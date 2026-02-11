@@ -68,7 +68,9 @@ module "cluster" {
 module "cluster_link" {
   source = "./modules/cluster_link"
 
-  cluster_link = var.cluster_link
+  cluster_link              = var.cluster_link
+  source_cluster_api_key    = var.source_cluster_api_key
+  source_cluster_api_secret = var.source_cluster_api_secret
 
   # Destination cluster info (from cluster module)
   destination_cluster_id            = module.cluster.cluster_id

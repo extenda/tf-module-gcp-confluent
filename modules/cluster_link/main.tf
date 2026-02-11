@@ -1,7 +1,7 @@
 locals {
   cluster_link_enabled = var.cluster_link.enabled
   cluster_link_name    = local.cluster_link_enabled ? coalesce(var.cluster_link.link_name, "${var.cluster_name}-link") : null
-  cluster_link_topics  = local.cluster_link_enabled ? nonsensitive(var.cluster_link.mirror_topics) : []
+  cluster_link_topics  = local.cluster_link_enabled ? var.cluster_link.mirror_topics : []
 
   # When local_rest_endpoint_port is set, use localhost with custom port for SSH tunnel access
   cluster_rest_endpoint = var.cluster_link.local_rest_endpoint_port != null ? (
@@ -26,8 +26,8 @@ resource "confluent_cluster_link" "link" {
     id                 = var.cluster_link.source_cluster_id
     bootstrap_endpoint = var.cluster_link.source_bootstrap_endpoint
     credentials {
-      key    = var.cluster_link.source_api_key
-      secret = var.cluster_link.source_api_secret
+      key    = var.source_cluster_api_key
+      secret = var.source_cluster_api_secret
     }
   }
 
