@@ -36,6 +36,12 @@ variable "dedicated_cku" {
   default     = 2
 }
 
+variable "enterprise_max_ecku" {
+  type        = number
+  description = "Maximum number of Elastic CKUs (eCKUs) for enterprise cluster auto-scaling. Minimum 2 for MULTI_ZONE."
+  default     = null
+}
+
 variable "project_id" {
   description = "Project ID to add Kafka secrets"
   type        = string

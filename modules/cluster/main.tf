@@ -58,7 +58,9 @@ resource "confluent_kafka_cluster" "cluster" {
   }
   dynamic "enterprise" {
     for_each = var.cluster_type == "enterprise" ? [1] : []
-    content {}
+    content {
+      max_ecku = var.enterprise_max_ecku
+    }
   }
   dynamic "dedicated" {
     for_each = var.cluster_type == "dedicated" ? [1] : []
