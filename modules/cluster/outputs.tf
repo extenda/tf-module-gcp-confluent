@@ -95,3 +95,21 @@ output "bastion_github_actions_workflow" {
 EOF
   ) : null
 }
+
+# =============================================================================
+# RBAC Outputs
+# =============================================================================
+
+output "group_mappings" {
+  description = "Map of group mapping names to their IDs"
+  value = {
+    for name, gm in confluent_group_mapping.mappings : name => gm.id
+  }
+}
+
+output "role_binding_service_accounts" {
+  description = "Map of service account names to their IDs (for service accounts created via role_bindings)"
+  value = {
+    for name, sa in confluent_service_account.role_binding_sa : name => sa.id
+  }
+}

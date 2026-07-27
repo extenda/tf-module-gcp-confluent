@@ -210,3 +210,134 @@ variable "source_cluster_api_secret" {
   default     = ""
   sensitive   = true
 }
+
+# =============================================================================
+# RBAC Variables - Group Mappings and Role Bindings
+# =============================================================================
+
+variable "group_mappings" {
+  type = list(object({
+    name        = string
+    description = optional(string)
+    filter      = string
+  }))
+  description = <<-EOT
+    SSO group mappings for Confluent Cloud RBAC. Maps groups from your identity provider
+    (e.g., Google Workspace) to Confluent Cloud principals using CEL filter expressions.
+
+    Prerequisites:
+    - SSO must be configured at the Confluent organization level
+    - Your IdP must send group claims in SAML assertions
+
+    - name: Unique identifier for the group mapping (used to reference in role_bindings)
+    - description: Optional description of the group mapping
+    - filter: CEL expression to match groups (e.g., "\"kafka-admins\" in groups")
+
+    Example:
+      group_mappings = [
+        {
+          name        = "kafka-admins"
+          description = "Kafka administrators from Google Workspace"
+          filter      = "\"kafka-admins\" in groups"
+        },
+        {
+          name        = "platform-team"
+          filter      = "\"platform-team\" in groups || \"sre-team\" in groups"
+        }
+      ]
+  EOT
+  default     = []
+}
+
+variable "role_bindings" {
+  type = list(object({
+    # Principal sources - exactly one must be specified
+    group = optional(string) # Reference to a group mapping name
+    service_account = optional(object({
+      name        = string
+      description = optional(string)
+    }))
+    principal = optional(string) # Existing principal ID (sa-xxx or u-xxx)
+
+    # Role configuration
+    role  = string
+    scope = string # "kafka" or "schema-registry"
+
+    # Resource scoping (optional - omit for cluster/registry-level access)
+    resource_type    = optional(string) # topic, group, transactional-id, subject
+    resource_pattern = optional(string) # Pattern to match (e.g., "orders-*")
+
+    # Advanced: Override CRN pattern directly
+    crn_pattern_override = optional(string)
+  }))
+  description = <<-EOT
+    RBAC role bindings for Kafka cluster and Schema Registry resources.
+
+    Each binding requires exactly ONE principal source:
+    - group: Reference to a group mapping name (for SSO group access)
+    - service_account: Create a new service account (for applications)
+    - principal: Reference existing principal by ID (sa-xxx or u-xxx)
+
+    Supported roles:
+    - Kafka: DeveloperRead, DeveloperWrite, DeveloperManage, ResourceOwner, CloudClusterAdmin
+    - Schema Registry: DeveloperRead, DeveloperWrite, ResourceOwner
+
+    Resource types:
+    - Kafka: topic, group (consumer group), transactional-id
+    - Schema Registry: subject
+
+    Example:
+      role_bindings = [
+        # SSO group with cluster admin access
+        {
+          group = "kafka-admins"
+          role  = "CloudClusterAdmin"
+          scope = "kafka"
+        },
+        # Application with topic-specific write access
+        {
+          service_account = { name = "order-producer" }
+          role            = "DeveloperWrite"
+          scope           = "kafka"
+          resource_type   = "topic"
+          resource_pattern = "orders-*"
+        },
+        # Existing service account with read access
+        {
+          principal        = "sa-abc123"
+          role             = "DeveloperRead"
+          scope            = "kafka"
+          resource_type    = "topic"
+          resource_pattern = "*"
+        }
+      ]
+  EOT
+  default     = []
+
+  validation {
+    condition = alltrue([
+      for rb in var.role_bindings :
+      contains(["kafka", "schema-registry"], rb.scope)
+    ])
+    error_message = "scope must be one of: kafka, schema-registry"
+  }
+
+  validation {
+    condition = alltrue([
+      for rb in var.role_bindings :
+      contains([
+        "DeveloperRead", "DeveloperWrite", "DeveloperManage",
+        "ResourceOwner", "CloudClusterAdmin"
+      ], rb.role)
+    ])
+    error_message = "role must be one of: DeveloperRead, DeveloperWrite, DeveloperManage, ResourceOwner, CloudClusterAdmin"
+  }
+
+  validation {
+    condition = alltrue([
+      for rb in var.role_bindings :
+      (rb.group != null ? 1 : 0) + (rb.service_account != null ? 1 : 0) + (rb.principal != null ? 1 : 0) == 1
+    ])
+    error_message = "Exactly one of group, service_account, or principal must be specified for each role binding"
+  }
+}

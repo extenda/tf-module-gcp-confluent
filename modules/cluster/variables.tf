@@ -70,6 +70,12 @@ variable "schema_registry" {
   sensitive = true
 }
 
+variable "schema_registry_resource_name" {
+  description = "Schema Registry resource name (CRN) for role bindings (from network module)"
+  type        = string
+  default     = null
+}
+
 # Variables for SSH tunnel instructions (from network module)
 variable "bastion_enabled" {
   description = "Whether bastion host is enabled (from network module)"
@@ -111,4 +117,36 @@ variable "platt_dns_domain" {
   description = "DNS domain for Private Link Attachment (from network module)"
   type        = string
   default     = null
+}
+
+# =============================================================================
+# RBAC Variables - Group Mappings and Role Bindings
+# =============================================================================
+
+variable "group_mappings" {
+  type = list(object({
+    name        = string
+    description = optional(string)
+    filter      = string
+  }))
+  description = "SSO group mappings for Confluent Cloud RBAC (from root module)"
+  default     = []
+}
+
+variable "role_bindings" {
+  type = list(object({
+    group = optional(string)
+    service_account = optional(object({
+      name        = string
+      description = optional(string)
+    }))
+    principal            = optional(string)
+    role                 = string
+    scope                = string
+    resource_type        = optional(string)
+    resource_pattern     = optional(string)
+    crn_pattern_override = optional(string)
+  }))
+  description = "RBAC role bindings for Kafka cluster and Schema Registry (from root module)"
+  default     = []
 }

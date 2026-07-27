@@ -91,3 +91,17 @@ output "schema_registry" {
   value       = module.network.schema_registry
   sensitive   = true
 }
+
+# =============================================================================
+# RBAC Outputs
+# =============================================================================
+
+output "group_mappings" {
+  description = "Map of group mapping names to their IDs"
+  value       = module.cluster.group_mappings
+}
+
+output "role_binding_service_accounts" {
+  description = "Map of service account names to their IDs (for service accounts created via role_bindings)"
+  value       = module.cluster.role_binding_service_accounts
+}
