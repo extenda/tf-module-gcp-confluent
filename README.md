@@ -208,6 +208,119 @@ When enabled, the module creates:
 
 After applying, your applications in the specified VPC can connect to Kafka using the private endpoint automatically via DNS resolution.
 
+## RBAC - Role Bindings and Group Mappings
+
+This module supports declarative RBAC configuration for both human administrators (via SSO group mappings) and applications (via service accounts).
+
+### Prerequisites for SSO Group Mappings
+
+- SSO must be configured at the Confluent organization level
+- Your identity provider (e.g., Google Workspace) must send group claims in SAML assertions
+
+### SSO Admin Group Access
+
+Grant cluster admin access to members of a Google Workspace group:
+
+```hcl
+module "confluent" {
+  source = "github.com/extenda/tf-module-gcp-confluent"
+
+  environment  = "production"
+  name         = "my-kafka-cluster"
+  cluster_type = "enterprise"
+  project_id   = "my-gcp-project"
+
+  # Map SSO groups to Confluent
+  group_mappings = [
+    {
+      name        = "kafka-admins"
+      description = "Kafka administrators from Google Workspace"
+      filter      = "\"kafka-admins\" in groups"
+    }
+  ]
+
+  # Grant access to the group
+  role_bindings = [
+    {
+      group = "kafka-admins"
+      role  = "CloudClusterAdmin"
+      scope = "kafka"
+    }
+  ]
+}
+```
+
+### Application Service Account Access
+
+Create service accounts with fine-grained permissions for applications:
+
+```hcl
+module "confluent" {
+  source = "github.com/extenda/tf-module-gcp-confluent"
+
+  environment  = "production"
+  name         = "my-kafka-cluster"
+  cluster_type = "enterprise"
+  project_id   = "my-gcp-project"
+
+  role_bindings = [
+    # Producer app: write access to orders-* topics
+    {
+      service_account  = { name = "order-producer" }
+      role             = "DeveloperWrite"
+      scope            = "kafka"
+      resource_type    = "topic"
+      resource_pattern = "orders-*"
+    },
+    # Consumer app: read access to all topics, manage consumer groups
+    {
+      service_account  = { name = "analytics-consumer" }
+      role             = "DeveloperRead"
+      scope            = "kafka"
+      resource_type    = "topic"
+      resource_pattern = "*"
+    },
+    {
+      service_account  = { name = "analytics-consumer" }
+      role             = "DeveloperRead"
+      scope            = "kafka"
+      resource_type    = "group"
+      resource_pattern = "analytics-*"
+    },
+    # Schema Registry access
+    {
+      service_account  = { name = "order-producer" }
+      role             = "DeveloperWrite"
+      scope            = "schema-registry"
+      resource_type    = "subject"
+      resource_pattern = "orders-*"
+    }
+  ]
+}
+
+# Access the created service account IDs
+output "service_accounts" {
+  value = module.confluent.role_binding_service_accounts
+  # Example: { "order-producer" = "sa-abc123", "analytics-consumer" = "sa-def456" }
+}
+```
+
+### Using Existing Service Accounts
+
+Reference existing service accounts by their ID:
+
+```hcl
+role_bindings = [
+  {
+    principal        = "sa-existing-123"
+    role             = "DeveloperRead"
+    scope            = "kafka"
+    resource_type    = "topic"
+    resource_pattern = "events-*"
+  }
+]
+```
+
 ## Cluster Link
 
 This module supports creating a cluster link to replicate data from an existing source cluster. The created cluster acts as the **destination**, receiving data from the source cluster via a destination-initiated link.
@@ -313,6 +426,33 @@ When `mirror_topics` is specified, the module creates `confluent_kafka_mirror_to
 | mirror\_topics | List of topic names to create as mirror topics | `list(string)` | no |
 | local\_rest\_endpoint\_port | Local port for SSH tunnel to REST endpoint (for private clusters) | `number` | no |
 
+### group\_mappings List
+
+SSO group mappings for Confluent Cloud RBAC. Maps groups from your identity provider (e.g., Google Workspace) to Confluent Cloud principals.
+
+| Name | Description | Type | Required |
+|------|-------------|------|:--------:|
+| name | Unique identifier for the group mapping | `string` | yes |
+| description | Description of the group mapping | `string` | no |
+| filter | CEL expression to match groups (e.g., `"\"kafka-admins\" in groups"`) | `string` | yes |
+
+### role\_bindings List
+
+RBAC role bindings for Kafka cluster and Schema Registry resources. Each binding requires exactly ONE principal source.
+
+| Name | Description | Type | Required |
+|------|-------------|------|:--------:|
+| group | Reference to a group mapping name (for SSO group access) | `string` | no* |
+| service\_account | Create a new service account `{ name, description }` | `object` | no* |
+| principal | Reference existing principal by ID (sa-xxx or u-xxx) | `string` | no* |
+| role | Role to assign (DeveloperRead, DeveloperWrite, DeveloperManage, ResourceOwner, CloudClusterAdmin) | `string` | yes |
+| scope | Resource scope ("kafka" or "schema-registry") | `string` | yes |
+| resource\_type | Resource type (topic, group, transactional-id, subject) | `string` | no |
+| resource\_pattern | Pattern to match resources (e.g., "orders-*") | `string` | no |
+| crn\_pattern\_override | Override CRN pattern directly (advanced) | `string` | no |
+
+\* Exactly one of `group`, `service_account`, or `principal` must be specified.
+
 ## Outputs
 
 | Name | Description |
@@ -324,9 +464,11 @@ When `mirror_topics` is specified, the module creates `confluent_kafka_mirror_to
 | cluster\_id | ID of created kafka cluster |
 | cluster\_link | Cluster Link configuration including link name, mode, source cluster ID, and mirror topics |
 | environment\_id | ID of the Confluent environment (created or existing) |
+| group\_mappings | Map of group mapping names to their IDs |
 | kafka\_cluster\_api\_key | API Key/Secret for the Kafka cluster |
 | kafka\_cluster\_url | URL of the kafka cluster |
 | private\_link\_attachment | Private Link Attachment (PLATT) configuration including endpoint details and DNS zone |
 | private\_service\_connect | Private Service Connect configuration including service attachments for creating GCP endpoints |
 | rest\_endpoint | REST endpoint of the Kafka cluster |
+| role\_binding\_service\_accounts | Map of service account names to their IDs (for accounts created via role\_bindings) |
 | schema\_registry | Schema Registry API key/secret/URL (only when create\_environment is true) |

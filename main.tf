@@ -38,16 +38,21 @@ module "network" {
 module "cluster" {
   source = "./modules/cluster"
 
-  environment_id              = module.network.environment_id
-  name                        = var.name
-  region                      = var.region
-  availability                = var.availability
-  cluster_type                = var.cluster_type
-  dedicated_cku               = var.dedicated_cku
-  project_id                  = var.project_id
-  network_id                  = module.network.private_service_connect != null ? module.network.private_service_connect.network_id : null
-  use_private_service_connect = var.private_service_connect.enabled
-  schema_registry             = module.network.schema_registry
+  environment_id                = module.network.environment_id
+  name                          = var.name
+  region                        = var.region
+  availability                  = var.availability
+  cluster_type                  = var.cluster_type
+  dedicated_cku                 = var.dedicated_cku
+  project_id                    = var.project_id
+  network_id                    = module.network.private_service_connect != null ? module.network.private_service_connect.network_id : null
+  use_private_service_connect   = var.private_service_connect.enabled
+  schema_registry               = module.network.schema_registry
+  schema_registry_resource_name = module.network.schema_registry_resource_name
+
+  # RBAC configuration
+  group_mappings = var.group_mappings
+  role_bindings  = var.role_bindings
 
   # Bastion/PLATT info for SSH tunnel instructions
   bastion_enabled       = module.network.bastion_enabled

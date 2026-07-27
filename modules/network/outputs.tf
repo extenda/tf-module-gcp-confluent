@@ -53,6 +53,11 @@ output "schema_registry" {
   sensitive = true
 }
 
+output "schema_registry_resource_name" {
+  description = "Schema Registry resource name (CRN) for role bindings. Only populated when create_environment is true."
+  value       = var.create_environment ? data.confluent_schema_registry_cluster.registry[0].resource_name : null
+}
+
 # Internal outputs for cluster module
 output "platt_dns_domain" {
   description = "DNS domain for Private Link Attachment (used by cluster module for SSH tunnel instructions)"
